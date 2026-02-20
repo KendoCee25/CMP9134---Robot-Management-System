@@ -22,6 +22,7 @@ Acceptance Criteria (AC) are specific to each story. The global Definition of Do
 - [ ] Duplicate usernames are rejected with a clear error message ("Username already taken")
 - [ ] All new accounts are assigned the `Viewer` role by default
 - [ ] Empty or whitespace-only username/password fields are rejected client-side
+- [ ] Registration form includes a "Confirm Password" field; submission blocked if fields don't match *(added after AI stakeholder review)*
 - [ ] Registration form fields and submit button are keyboard accessible (WCAG — Operable)
 - [ ] On success, user is redirected to the login page with a confirmation message
 
@@ -57,6 +58,7 @@ Acceptance Criteria (AC) are specific to each story. The global Definition of Do
 - [ ] Role is enforced server-side — a `Viewer` cannot call the move endpoint even via a direct HTTP request
 - [ ] If a `Viewer` attempts a command action, the server returns `403 Forbidden`
 - [ ] Role is stored in the database and cannot be changed by the user themselves
+- [ ] Role is read from the server-side session/database on every request — client-provided role claims are never trusted *(added after AI stakeholder review)*
 - [ ] Role is visible to the logged-in user on the dashboard (e.g. "Logged in as: Commander")
 
 ---
@@ -74,6 +76,7 @@ Acceptance Criteria (AC) are specific to each story. The global Definition of Do
 - [ ] Robot status (`IDLE`, `MOVING`, `LOW_BATTERY`, `STUCK`) displayed as a labelled badge
 - [ ] A `LOW_BATTERY` alert banner is shown prominently when battery < 20%
 - [ ] `STUCK` status triggers a visible alert ("Robot is stuck — clear path required")
+- [ ] When robot is `IDLE` at (0,0) and battery is increasing, display a "Charging" indicator *(added after AI stakeholder review)*
 - [ ] UI does not crash or freeze during 503 outages; shows "Reconnecting..." indicator
 - [ ] Last known data is displayed (labelled as stale) during a dropout
 
@@ -93,6 +96,7 @@ Acceptance Criteria (AC) are specific to each story. The global Definition of Do
 - [ ] Move button is disabled while robot `status === "MOVING"` (prevents conflicting commands)
 - [ ] Move button is disabled when `battery === 0`
 - [ ] Move button and input fields are keyboard accessible (WCAG — Operable)
+- [ ] If robot status becomes `STUCK` after a move command, UI displays "Robot is stuck — command did not complete" *(added after AI stakeholder review)*
 - [ ] Move controls are hidden entirely for `Viewer` role users
 
 ---
@@ -124,6 +128,7 @@ Acceptance Criteria (AC) are specific to each story. The global Definition of Do
 - [ ] "Low Battery" alert shown when battery < 20% (distinct from connection status)
 - [ ] "Robot Stuck" alert shown when status is `STUCK`
 - [ ] "Command Failed" message shown if a move request returns an error
+- [ ] If connection is lost while robot is `MOVING`, dashboard displays "Signal lost — robot may still be executing last command" *(added after AI stakeholder review)*
 - [ ] All status indicators meet WCAG colour contrast requirements (not colour-only — include icon or text label)
 - [ ] Indicators are screen-reader accessible (WCAG — Robust)
 
@@ -140,7 +145,8 @@ Acceptance Criteria (AC) are specific to each story. The global Definition of Do
 - [ ] Log persists across server restarts (stored in database, not in-memory)
 - [ ] Both `Viewer` and `Commander` users can read the audit log (read-only for all)
 - [ ] Failed commands (e.g. 422 errors) are also logged with their error reason
-- [ ] A user may request deletion of their log entries (GDPR Right to Erasure — Article 17)
+- [ ] Log entries are immutable — no edit or update operation exists for existing entries *(added after AI stakeholder review)*
+- [ ] A logged-in user can submit a deletion request via the dashboard; system deletes their entries and confirms in writing (GDPR Right to Erasure — Article 17) *(updated after AI stakeholder review)*
 
 ---
 
@@ -154,6 +160,7 @@ Acceptance Criteria (AC) are specific to each story. The global Definition of Do
 - [ ] All tests are runnable with a single command (e.g. `pytest` or `npm test`)
 - [ ] Tests pass in the GitHub Actions CI pipeline on every push
 - [ ] No hardcoded credentials or secrets in test files
+- [ ] CI pipeline includes a secret-scanning step that fails the build if credentials are found in code *(added after AI stakeholder review)*
 - [ ] At least 70% code coverage on core business logic
 
 ---
@@ -172,6 +179,7 @@ Acceptance Criteria (AC) are specific to each story. The global Definition of Do
 - [ ] `docker-compose up` starts the full system with no manual steps beyond setting env variables
 - [ ] Dashboard container can reach robot API at `http://robot_sim:5000` via Docker internal network
 - [ ] `.env.example` provided listing all required environment variables (no secrets committed to repo)
+- [ ] `.env` file is listed in `.gitignore` — verified before any push to main *(added after AI stakeholder review)*
 - [ ] No hardcoded `localhost` references in production code — use service names from docker-compose
 - [ ] Application is accessible at `http://localhost:3000` (or documented port) after `docker-compose up`
 - [ ] `docker-compose down` cleanly stops and removes containers
