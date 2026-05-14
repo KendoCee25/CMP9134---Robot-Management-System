@@ -157,7 +157,7 @@ Acceptance Criteria (AC) are specific to each story. The global Definition of Do
 **Acceptance Criteria:**
 - [ ] Unit tests cover: password hashing, RBAC role enforcement, coordinate validation (0–20), mission log creation
 - [ ] Integration tests cover: registration flow, login flow, `/api/move` blocked for `Viewer` role, audit log entry created after move command
-- [ ] All tests are runnable with a single command (e.g. `pytest` or `npm test`)
+- [ ] All tests are runnable with a single command (`npm test`)
 - [ ] Tests pass in the GitHub Actions CI pipeline on every push
 - [ ] No hardcoded credentials or secrets in test files
 - [ ] CI pipeline includes a secret-scanning step that fails the build if credentials are found in code *(added after AI stakeholder review)*

@@ -203,9 +203,9 @@ classDiagram
 ```mermaid
 sequenceDiagram
     actor C as Commander
-    participant UI as Web Dashboard
-    participant API as Python/Flask Backend
-    participant DB as SQLite Database
+    participant UI as React Dashboard
+    participant API as Node.js/Express Backend
+    participant DB as MongoDB (Mongoose)
     participant Sim as Virtual Robot (Docker)
 
     C->>UI: Enter X=5, Y=10 and click 'Move'
@@ -215,7 +215,7 @@ sequenceDiagram
     activate API
 
     API->>API: Verify session token
-    API->>DB: SELECT role FROM users WHERE session_id = token
+    API->>DB: users.findOne({ sessionId: token })
     DB-->>API: role = "Commander"
 
     alt Role is Viewer
@@ -252,3 +252,58 @@ sequenceDiagram
 - Both the `200 OK` and `503` paths write to the audit log — failed commands are still recorded (US-08 AC).
 - The `alt` block for role check exits early (`deactivate API`) — the backend terminates the request immediately on a 403, it does not proceed further down the chain.
 - Client-side validation is shown as a self-call on `UI` before the API request — this reflects the AC that "client-side validation blocks the request" but does not replace server-side validation.
+
+---
+
+## Task 5 — Component Diagram (Deployment & Interface Perspective)
+
+**Goal:** Show the high-level runtime components of the system, their provided/required interfaces, and how they connect across Docker containers.
+
+```mermaid
+flowchart TB
+    subgraph Browser ["<<device>> Operator Browser"]
+        ReactSPA["<<component>>\nReact SPA\n(Vite :3000)"]
+    end
+
+    subgraph GCS ["<<container>> Ground Control Station"]
+        subgraph ExpressApp ["<<component>> Express API (Node.js :5000)"]
+            AuthMW["<<component>>\nAuth Middleware\n(express-session + bcrypt)"]
+            RBAC["<<component>>\nRBAC Enforcer"]
+            RobotClient["<<component>>\nrobotClient.js\n(Singleton + Facade)"]
+        end
+
+        subgraph DataLayer ["<<component>> Data Access (Mongoose)"]
+            UserModel["<<component>>\nUser Model"]
+            LogModel["<<component>>\nMissionLog Model"]
+        end
+
+        MongoDB[("<<component>>\nMongoDB\n:27017")]
+    end
+
+    subgraph RobotContainer ["<<container>> Virtual Robot Simulator"]
+        RobotAPI["<<component>>\nFlask REST API\n:5000"]
+        WSStream["<<component>>\nWebSocket\n/ws/telemetry"]
+    end
+
+    %% Browser → GCS
+    ReactSPA -- "REST /api/*\n(Axios)" --> ExpressApp
+    ExpressApp --> AuthMW
+    AuthMW --> RBAC
+    ExpressApp --> RobotClient
+
+    %% GCS Data Layer
+    ExpressApp -- "Mongoose ODM" --> DataLayer
+    UserModel -- "read/write" --> MongoDB
+    LogModel  -- "read/write" --> MongoDB
+
+    %% GCS → Robot
+    RobotClient -- "POST /api/move\nGET /api/status\nPOST /api/reset" --> RobotAPI
+    WSStream   -- "telemetry stream\n(1Hz)" --> ReactSPA
+```
+
+**Design decisions:**
+- `robotClient.js` is shown as a component inside the Express App layer — it is a Facade that the route handlers call; it never exposes itself directly to React (US-03 AC: all robot commands are gated by RBAC before reaching the client).
+- The WebSocket stream (`/ws/telemetry`) connects **directly** from the Virtual Robot container to the React SPA — this is intentional. Routing it through Express would add unnecessary latency for a 1Hz live feed; the Express backend handles commands, not the telemetry stream.
+- No `localhost` references appear in the diagram — all inter-container communication uses Docker Compose service names (`robot`, `mongo`), satisfying US-10 AC: "No hardcoded localhost references in production code."
+- `MongoDB` is a separate logical component within the GCS container (deployed via Docker Compose alongside Express) — it is not an external cloud service, satisfying the GDPR data residency concern in the Privacy Policy.
+- `Auth Middleware` and `RBAC Enforcer` are shown as sub-components of the Express App — they are not standalone services, but they are architecturally distinct responsibilities that could be extracted into microservices in a future iteration.

@@ -1,0 +1,723 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Robot Ground Control Station — Prototype</title>
+  <!-- Bootstrap 5 CDN -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" />
+  <!-- Bootstrap Icons -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet" />
+
+  <style>
+    /* ── Global dark theme ─────────────────────────────────────────── */
+    body {
+      background-color: #0d1117;
+      color: #c9d1d9;
+      font-family: 'Segoe UI', system-ui, sans-serif;
+    }
+
+    /* ── Navbar ────────────────────────────────────────────────────── */
+    .navbar {
+      background-color: #161b22 !important;
+      border-bottom: 1px solid #30363d;
+    }
+    .navbar-brand { color: #58a6ff !important; font-weight: 700; letter-spacing: 0.05em; }
+    .nav-link { color: #8b949e !important; }
+    .nav-link:hover, .nav-link.active { color: #c9d1d9 !important; }
+    .role-badge-commander { background-color: #d29922; color: #000; }
+    .role-badge-viewer     { background-color: #30363d; color: #8b949e; }
+
+    /* ── Status bar ────────────────────────────────────────────────── */
+    .status-bar {
+      background-color: #161b22;
+      border-bottom: 1px solid #30363d;
+      font-size: 0.85rem;
+    }
+    .conn-dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
+    .conn-connected    { background-color: #3fb950; }
+    .conn-reconnecting { background-color: #d29922; }
+    .conn-lost         { background-color: #f85149; }
+
+    /* ── Cards ─────────────────────────────────────────────────────── */
+    .card {
+      background-color: #161b22;
+      border: 1px solid #30363d;
+      border-radius: 8px;
+    }
+    .card-header {
+      background-color: #21262d;
+      border-bottom: 1px solid #30363d;
+      font-weight: 600;
+      color: #58a6ff;
+      font-size: 0.85rem;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    /* ── 2D Grid Map ───────────────────────────────────────────────── */
+    #grid-map {
+      display: grid;
+      gap: 2px;
+      width: 100%;
+      aspect-ratio: 1;
+    }
+    .cell {
+      border-radius: 2px;
+      background-color: #21262d;
+    }
+    .cell-obstacle  { background-color: #30363d; }
+    .cell-robot     { background-color: #58a6ff; border-radius: 50%; }
+    .cell-charging  { background-color: #3fb950; border-radius: 50%; }
+
+    /* ── Battery bar colours ───────────────────────────────────────── */
+    .battery-high   { background-color: #3fb950 !important; }
+    .battery-medium { background-color: #d29922 !important; }
+    .battery-low    { background-color: #f85149 !important; }
+
+    /* ── Status badge ──────────────────────────────────────────────── */
+    .badge-IDLE        { background-color: #3fb950; color: #000; }
+    .badge-MOVING      { background-color: #58a6ff; color: #000; }
+    .badge-LOW_BATTERY { background-color: #d29922; color: #000; }
+    .badge-STUCK       { background-color: #f85149; color: #fff; }
+
+    /* ── Move button — Fitts's Law: full-width, large ──────────────── */
+    #btn-move {
+      width: 100%;
+      padding: 14px;
+      font-size: 1.1rem;
+      font-weight: 700;
+      letter-spacing: 0.05em;
+      background-color: #238636;
+      border-color: #2ea043;
+      color: #fff;
+      transition: background-color 0.15s, opacity 0.15s;
+    }
+    #btn-move:hover:not(:disabled)  { background-color: #2ea043; }
+    #btn-move:disabled {
+      opacity: 0.45;
+      cursor: not-allowed;
+      background-color: #30363d;
+      border-color: #30363d;
+    }
+
+    /* ── Stop button ───────────────────────────────────────────────── */
+    #btn-stop {
+      width: 100%;
+      padding: 10px;
+      font-weight: 600;
+      background-color: #da3633;
+      border-color: #f85149;
+      color: #fff;
+      display: none;
+    }
+    #btn-stop:hover { background-color: #f85149; }
+
+    /* ── Reset button (smaller, secondary) ────────────────────────── */
+    #btn-reset {
+      background-color: transparent;
+      border-color: #30363d;
+      color: #8b949e;
+      font-size: 0.85rem;
+    }
+    #btn-reset:hover { border-color: #8b949e; color: #c9d1d9; }
+
+    /* ── Form inputs ───────────────────────────────────────────────── */
+    .form-control, .form-select {
+      background-color: #0d1117;
+      border-color: #30363d;
+      color: #c9d1d9;
+    }
+    .form-control:focus {
+      background-color: #0d1117;
+      border-color: #58a6ff;
+      color: #c9d1d9;
+      box-shadow: 0 0 0 3px rgba(88, 166, 255, 0.25);
+    }
+    .form-control.is-invalid { border-color: #f85149; }
+    .form-control.is-valid   { border-color: #3fb950; }
+
+    /* ── Keyboard focus ring (WCAG) ────────────────────────────────── */
+    :focus-visible {
+      outline: 2px solid #58a6ff;
+      outline-offset: 2px;
+    }
+
+    /* ── Audit log table ───────────────────────────────────────────── */
+    .table { color: #c9d1d9; font-size: 0.85rem; }
+    .table thead th { background-color: #21262d; border-color: #30363d; color: #8b949e; }
+    .table tbody tr { border-color: #30363d; }
+    .table tbody tr:hover { background-color: #21262d; }
+
+    /* ── Toasts ────────────────────────────────────────────────────── */
+    .toast-container { z-index: 1090; }
+    .toast-success { background-color: #1a3a2a; border: 1px solid #3fb950; color: #3fb950; }
+    .toast-error   { background-color: #3a1a1a; border: 1px solid #f85149; color: #f85149; }
+    .toast-warning { background-color: #3a2a0a; border: 1px solid #d29922; color: #d29922; }
+
+    /* ── Alert banners ─────────────────────────────────────────────── */
+    #alert-low-battery, #alert-stuck { display: none; font-size: 0.9rem; }
+  </style>
+</head>
+<body>
+
+<!-- ══ NAVIGATION BAR ══════════════════════════════════════════════════ -->
+<nav class="navbar navbar-expand-lg" aria-label="Main navigation">
+  <div class="container-fluid px-4">
+    <a class="navbar-brand" href="#" aria-label="Robot Ground Control Station home">
+      <i class="bi bi-robot" aria-hidden="true"></i> Robot GCS
+    </a>
+    <button class="navbar-toggler" type="button"
+            data-bs-toggle="collapse" data-bs-target="#mainNav"
+            aria-controls="mainNav" aria-expanded="false"
+            aria-label="Toggle navigation">
+      <span class="navbar-toggler-icon"></span>
+    </button>
+    <div class="collapse navbar-collapse" id="mainNav">
+      <ul class="navbar-nav me-auto">
+        <li class="nav-item">
+          <a class="nav-link active" href="#dashboard" aria-current="page">
+            <i class="bi bi-speedometer2" aria-hidden="true"></i> Dashboard
+          </a>
+        </li>
+        <li class="nav-item">
+          <a class="nav-link" href="#audit-log">
+            <i class="bi bi-journal-text" aria-hidden="true"></i> Audit Log
+          </a>
+        </li>
+      </ul>
+      <div class="d-flex align-items-center gap-2">
+        <span class="text-muted small">Logged in as:</span>
+        <strong id="username-display">alice</strong>
+        <!-- Role selector for prototype demo only -->
+        <select id="role-switcher" class="form-select form-select-sm w-auto"
+                aria-label="Switch demo role" style="background-color:#21262d; color:#c9d1d9; border-color:#30363d;">
+          <option value="Commander">COMMANDER</option>
+          <option value="Viewer">VIEWER</option>
+        </select>
+        <button class="btn btn-sm btn-outline-secondary ms-2" onclick="mockLogout()">
+          <i class="bi bi-box-arrow-right" aria-hidden="true"></i> Logout
+        </button>
+      </div>
+    </div>
+  </div>
+</nav>
+
+<!-- ══ STATUS BAR ═══════════════════════════════════════════════════════ -->
+<div class="status-bar py-2 px-4 d-flex align-items-center gap-3" role="status" aria-live="polite">
+  <span>
+    <span class="conn-dot conn-connected me-1" id="conn-dot" aria-hidden="true"></span>
+    <span id="conn-label">Connected</span>
+  </span>
+  <span class="text-muted">|</span>
+  <span>
+    <i class="bi bi-battery-half" aria-hidden="true"></i>
+    Battery: <strong id="status-battery">82%</strong>
+  </span>
+  <span class="text-muted">|</span>
+  <span>
+    Status: <span id="status-badge" class="badge badge-IDLE">IDLE</span>
+  </span>
+  <span class="text-muted">|</span>
+  <span>Position: X <strong id="status-x">3</strong>, Y <strong id="status-y">4</strong></span>
+</div>
+
+<!-- ══ ALERT BANNERS ════════════════════════════════════════════════════ -->
+<div class="container-fluid px-4 mt-2">
+  <div id="alert-low-battery" class="alert alert-warning d-flex align-items-center gap-2" role="alert">
+    <i class="bi bi-exclamation-triangle-fill" aria-hidden="true"></i>
+    <strong>Low Battery Warning:</strong> Battery below 20% — return robot to charging station at (0,0).
+  </div>
+  <div id="alert-stuck" class="alert alert-danger d-flex align-items-center gap-2" role="alert">
+    <i class="bi bi-x-octagon-fill" aria-hidden="true"></i>
+    <strong>Robot Stuck:</strong> Robot has hit an obstacle and cannot continue. Reset simulation to recover.
+  </div>
+</div>
+
+<!-- ══ MAIN CONTENT ══════════════════════════════════════════════════════ -->
+<main class="container-fluid px-4 py-3" id="dashboard">
+  <div class="row g-3">
+
+    <!-- ── LEFT: 2D Grid Map ────────────────────────────────────────── -->
+    <div class="col-lg-5">
+      <div class="card h-100">
+        <div class="card-header d-flex justify-content-between align-items-center">
+          <span><i class="bi bi-map" aria-hidden="true"></i> 2D Grid Map</span>
+          <span class="text-muted small fw-normal">21 × 21</span>
+        </div>
+        <div class="card-body p-2">
+          <div id="grid-map" role="img" aria-label="21 by 21 robot position grid map"></div>
+          <div class="mt-2 d-flex gap-3 flex-wrap" style="font-size:0.75rem; color:#8b949e;">
+            <span><span class="cell-robot d-inline-block" style="width:10px;height:10px;border-radius:50%;"></span> Robot</span>
+            <span><span class="cell-charging d-inline-block" style="width:10px;height:10px;border-radius:50%;"></span> Charging (0,0)</span>
+            <span><span class="cell-obstacle d-inline-block" style="width:10px;height:10px;border-radius:2px;"></span> Obstacle</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── RIGHT: Telemetry + Command ──────────────────────────────── -->
+    <div class="col-lg-7">
+      <div class="row g-3">
+
+        <!-- Telemetry Panel -->
+        <div class="col-12">
+          <div class="card">
+            <div class="card-header">
+              <i class="bi bi-activity" aria-hidden="true"></i> Telemetry
+            </div>
+            <div class="card-body">
+              <div class="row g-3">
+                <div class="col-sm-3 text-center">
+                  <div class="text-muted small mb-1">Robot ID</div>
+                  <strong id="tel-id">XR-900</strong>
+                </div>
+                <div class="col-sm-3 text-center">
+                  <div class="text-muted small mb-1">Status</div>
+                  <span id="tel-status" class="badge badge-IDLE fs-6">IDLE</span>
+                </div>
+                <div class="col-sm-3 text-center">
+                  <div class="text-muted small mb-1">Position</div>
+                  <strong>X: <span id="tel-x">3</span> &nbsp; Y: <span id="tel-y">4</span></strong>
+                </div>
+                <div class="col-sm-3 text-center">
+                  <div class="text-muted small mb-1">Battery</div>
+                  <strong id="tel-battery">82%</strong>
+                </div>
+              </div>
+              <div class="mt-3">
+                <label for="battery-bar" class="visually-hidden">Battery level</label>
+                <div class="progress" style="height: 12px;" id="battery-bar-container">
+                  <div id="battery-bar"
+                       class="progress-bar battery-high"
+                       role="progressbar"
+                       style="width: 82%"
+                       aria-valuenow="82"
+                       aria-valuemin="0"
+                       aria-valuemax="100"
+                       aria-label="Battery 82%">
+                  </div>
+                </div>
+              </div>
+              <div class="mt-2 text-muted small">
+                Last update: <span id="tel-timestamp">2026-03-13 10:05:01 UTC</span>
+                <span id="stale-label" class="text-warning ms-1" style="display:none;">(stale)</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Move Robot Command Panel -->
+        <div class="col-12" id="commander-panel">
+          <div class="card">
+            <div class="card-header">
+              <i class="bi bi-controller" aria-hidden="true"></i> Move Robot
+              <span class="badge role-badge-commander ms-2">Commander Only</span>
+            </div>
+            <div class="card-body">
+              <p class="text-muted small mb-3">
+                Enter integer coordinates between 0 and 20 to navigate the robot.
+              </p>
+              <form id="move-form" novalidate>
+                <div class="row g-2 mb-3">
+                  <div class="col-6">
+                    <label for="input-x" class="form-label">Target X</label>
+                    <input type="number" class="form-control" id="input-x"
+                           min="0" max="20" step="1"
+                           placeholder="0–20"
+                           aria-describedby="x-feedback"
+                           required />
+                    <div id="x-feedback" class="invalid-feedback">
+                      X must be an integer between 0 and 20.
+                    </div>
+                  </div>
+                  <div class="col-6">
+                    <label for="input-y" class="form-label">Target Y</label>
+                    <input type="number" class="form-control" id="input-y"
+                           min="0" max="20" step="1"
+                           placeholder="0–20"
+                           aria-describedby="y-feedback"
+                           required />
+                    <div id="y-feedback" class="invalid-feedback">
+                      Y must be an integer between 0 and 20.
+                    </div>
+                  </div>
+                </div>
+
+                <!-- MOVE button — full-width, Fitts's Law -->
+                <button type="submit" id="btn-move" aria-label="Move robot to target coordinates">
+                  <i class="bi bi-send-fill me-2" aria-hidden="true"></i>
+                  MOVE ROBOT
+                </button>
+
+                <!-- STOP button — only visible while MOVING -->
+                <button type="button" id="btn-stop" class="mt-2"
+                        aria-label="Stop robot and reset simulation"
+                        title="Halt the robot by resetting the simulation"
+                        onclick="mockStop()">
+                  <i class="bi bi-stop-circle-fill me-2" aria-hidden="true"></i>
+                  STOP ROBOT
+                </button>
+              </form>
+
+              <div class="mt-3">
+                <button id="btn-reset" class="btn btn-sm w-100"
+                        aria-label="Reset simulation to initial state"
+                        onclick="mockReset()">
+                  <i class="bi bi-arrow-counterclockwise me-1" aria-hidden="true"></i>
+                  Reset Simulation
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Viewer message (shown instead of command panel for Viewer role) -->
+        <div class="col-12" id="viewer-panel" style="display:none;">
+          <div class="card">
+            <div class="card-body text-center py-4">
+              <i class="bi bi-eye text-muted" style="font-size: 2rem;" aria-hidden="true"></i>
+              <p class="text-muted mt-2 mb-0">Move controls are restricted to Commander role.</p>
+            </div>
+          </div>
+        </div>
+
+      </div><!-- /row -->
+    </div><!-- /col-lg-7 -->
+  </div><!-- /row -->
+
+  <!-- ══ MISSION AUDIT LOG ═══════════════════════════════════════════ -->
+  <div class="row mt-3" id="audit-log">
+    <div class="col-12">
+      <div class="card">
+        <div class="card-header d-flex justify-content-between align-items-center">
+          <span><i class="bi bi-journal-text" aria-hidden="true"></i> Mission Audit Log</span>
+          <button class="btn btn-sm btn-outline-danger"
+                  onclick="mockGdprDelete()"
+                  aria-label="Request deletion of your audit log entries (GDPR Right to Erasure)">
+            <i class="bi bi-trash" aria-hidden="true"></i> Request Data Deletion
+          </button>
+        </div>
+        <div class="card-body p-0">
+          <!-- Search -->
+          <div class="p-3 border-bottom" style="border-color:#30363d !important;">
+            <label for="log-search" class="visually-hidden">Search audit log</label>
+            <input type="search" class="form-control form-control-sm"
+                   id="log-search" placeholder="Filter by user or outcome…"
+                   oninput="filterLog()" aria-label="Filter audit log entries" />
+          </div>
+          <!-- Table -->
+          <div class="table-responsive">
+            <table class="table table-hover mb-0" aria-label="Mission audit log">
+              <thead>
+                <tr>
+                  <th scope="col">Timestamp (UTC)</th>
+                  <th scope="col">User</th>
+                  <th scope="col">Role</th>
+                  <th scope="col">X</th>
+                  <th scope="col">Y</th>
+                  <th scope="col">Robot Status</th>
+                  <th scope="col">Outcome</th>
+                </tr>
+              </thead>
+              <tbody id="log-body"></tbody>
+            </table>
+          </div>
+          <!-- Pagination -->
+          <div class="p-3 d-flex justify-content-between align-items-center" style="border-top:1px solid #30363d;">
+            <span class="text-muted small" id="log-info"></span>
+            <nav aria-label="Audit log pagination">
+              <ul class="pagination pagination-sm mb-0" id="log-pagination"></ul>
+            </nav>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</main><!-- /main -->
+
+<!-- ══ TOAST CONTAINER ════════════════════════════════════════════════ -->
+<div class="toast-container position-fixed bottom-0 end-0 p-3" aria-live="polite" aria-atomic="true">
+  <div id="toast-el" class="toast align-items-center border-0" role="alert">
+    <div class="d-flex">
+      <div class="toast-body fw-semibold" id="toast-msg"></div>
+      <button type="button" class="btn-close btn-close-white me-2 m-auto"
+              data-bs-dismiss="toast" aria-label="Close notification"></button>
+    </div>
+  </div>
+</div>
+
+<!-- Bootstrap 5 JS -->
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+
+<script>
+/* ── Mock state ──────────────────────────────────────────────────────── */
+const state = {
+  battery: 82,
+  status: "IDLE",
+  x: 3,
+  y: 4,
+  role: "Commander",
+};
+
+/* Randomly placed obstacles (fixed seed for demo) */
+const OBSTACLES = new Set([
+  "2,5","5,2","8,7","10,3","14,1","1,14","7,12","18,6",
+  "3,18","15,15","11,9","6,6","16,11","9,16","13,4","4,10"
+]);
+
+const GRID_SIZE = 21;
+const LOG_PAGE_SIZE = 10;
+let logData = [];
+let currentLogPage = 1;
+let filteredLog = [];
+
+/* ── Build grid ──────────────────────────────────────────────────────── */
+function buildGrid() {
+  const el = document.getElementById("grid-map");
+  el.innerHTML = "";
+  el.style.gridTemplateColumns = `repeat(${GRID_SIZE}, 1fr)`;
+  for (let row = 0; row < GRID_SIZE; row++) {
+    for (let col = 0; col < GRID_SIZE; col++) {
+      const cell = document.createElement("div");
+      cell.className = "cell";
+      cell.style.paddingTop = "100%"; /* square */
+      const key = `${col},${row}`;
+      if (col === state.x && row === state.y) {
+        cell.classList.add("cell-robot");
+        cell.setAttribute("aria-label", `Robot position column ${col} row ${row}`);
+      } else if (col === 0 && row === 0) {
+        cell.classList.add("cell-charging");
+      } else if (OBSTACLES.has(key)) {
+        cell.classList.add("cell-obstacle");
+      }
+      el.appendChild(cell);
+    }
+  }
+}
+
+/* ── Update telemetry displays ───────────────────────────────────────── */
+function updateTelemetry() {
+  const b = state.battery;
+  document.getElementById("status-battery").textContent = b + "%";
+  document.getElementById("tel-battery").textContent    = b + "%";
+  document.getElementById("status-x").textContent       = state.x;
+  document.getElementById("status-y").textContent       = state.y;
+  document.getElementById("tel-x").textContent          = state.x;
+  document.getElementById("tel-y").textContent          = state.y;
+  document.getElementById("tel-timestamp").textContent  = new Date().toISOString().replace("T"," ").slice(0,19) + " UTC";
+
+  // Battery bar
+  const bar = document.getElementById("battery-bar");
+  bar.style.width = b + "%";
+  bar.setAttribute("aria-valuenow", b);
+  bar.setAttribute("aria-label", "Battery " + b + "%");
+  bar.className = "progress-bar " + (b > 30 ? "battery-high" : b > 20 ? "battery-medium" : "battery-low");
+
+  // Status badge
+  ["status-badge","tel-status"].forEach(id => {
+    const el = document.getElementById(id);
+    el.textContent = state.status;
+    el.className = "badge badge-" + state.status;
+  });
+
+  // Alert banners
+  document.getElementById("alert-low-battery").style.display = b < 20 ? "flex" : "none";
+  document.getElementById("alert-stuck").style.display       = state.status === "STUCK" ? "flex" : "none";
+
+  // Move / Stop button states
+  const moving = state.status === "MOVING";
+  const moveBtn = document.getElementById("btn-move");
+  moveBtn.disabled = (moving || b === 0);
+  moveBtn.title = moving ? "Waiting for robot to stop…" : b === 0 ? "Battery depleted" : "";
+  document.getElementById("btn-stop").style.display = moving ? "block" : "none";
+
+  buildGrid();
+}
+
+/* ── Show toast ──────────────────────────────────────────────────────── */
+function showToast(msg, type = "success") {
+  const el = document.getElementById("toast-el");
+  el.className = "toast align-items-center border-0 toast-" + type;
+  document.getElementById("toast-msg").textContent = msg;
+  bootstrap.Toast.getOrCreateInstance(el, { delay: 4000 }).show();
+}
+
+/* ── Move form submission ────────────────────────────────────────────── */
+document.getElementById("move-form").addEventListener("submit", function(e) {
+  e.preventDefault();
+  const xInput = document.getElementById("input-x");
+  const yInput = document.getElementById("input-y");
+  const x = parseInt(xInput.value, 10);
+  const y = parseInt(yInput.value, 10);
+
+  let valid = true;
+
+  // Validate X
+  if (isNaN(x) || x < 0 || x > 20) {
+    xInput.classList.add("is-invalid"); xInput.classList.remove("is-valid");
+    valid = false;
+  } else {
+    xInput.classList.remove("is-invalid"); xInput.classList.add("is-valid");
+  }
+
+  // Validate Y
+  if (isNaN(y) || y < 0 || y > 20) {
+    yInput.classList.add("is-invalid"); yInput.classList.remove("is-valid");
+    valid = false;
+  } else {
+    yInput.classList.remove("is-invalid"); yInput.classList.add("is-valid");
+  }
+
+  if (!valid) return;
+
+  // Simulate command
+  state.status = "MOVING";
+  updateTelemetry();
+  showToast(`Navigating to (${x}, ${y})…`, "success");
+
+  // Log entry
+  addLogEntry("alice", state.role, x, y, "MOVING", "SUCCESS", null);
+
+  // Simulate arrival after 2.5s
+  setTimeout(() => {
+    state.x = x;
+    state.y = y;
+    state.battery = Math.max(0, state.battery - Math.floor(Math.abs(x - state.x) + Math.abs(y - state.y)) * 0.5);
+    state.status = "IDLE";
+    updateTelemetry();
+    showToast(`Robot arrived at (${x}, ${y}).`, "success");
+    xInput.classList.remove("is-valid");
+    yInput.classList.remove("is-valid");
+  }, 2500);
+});
+
+/* ── Stop robot ──────────────────────────────────────────────────────── */
+function mockStop() {
+  state.status = "IDLE";
+  updateTelemetry();
+  showToast("Robot halted. Simulation reset.", "warning");
+  addLogEntry("alice", state.role, state.x, state.y, "MOVING", "ERROR", "Manually stopped");
+}
+
+/* ── Reset simulation ────────────────────────────────────────────────── */
+function mockReset() {
+  state.battery = 100;
+  state.status = "IDLE";
+  state.x = 0;
+  state.y = 0;
+  updateTelemetry();
+  showToast("Simulation reset. Robot returned to (0, 0).", "success");
+}
+
+/* ── Role switcher (prototype demo) ─────────────────────────────────── */
+document.getElementById("role-switcher").addEventListener("change", function() {
+  state.role = this.value;
+  const isCommander = state.role === "Commander";
+  document.getElementById("commander-panel").style.display = isCommander ? "block" : "none";
+  document.getElementById("viewer-panel").style.display    = isCommander ? "none"  : "block";
+});
+
+/* ── Mock logout ─────────────────────────────────────────────────────── */
+function mockLogout() {
+  showToast("Logged out successfully. Session ended.", "success");
+}
+
+/* ── Mock GDPR delete ────────────────────────────────────────────────── */
+function mockGdprDelete() {
+  if (confirm("This will permanently delete all your audit log entries. This cannot be undone. Continue?")) {
+    logData = logData.filter(e => e.user !== "alice");
+    filteredLog = logData;
+    renderLog();
+    showToast("Your data has been deleted (GDPR Right to Erasure — Article 17).", "warning");
+  }
+}
+
+/* ── Audit log ───────────────────────────────────────────────────────── */
+function addLogEntry(user, role, x, y, robotStatus, outcome, errorReason) {
+  const ts = new Date().toISOString().replace("T"," ").slice(0,19) + " UTC";
+  logData.unshift({ ts, user, role, x, y, robotStatus, outcome, errorReason });
+  filteredLog = filterLogData();
+  currentLogPage = 1;
+  renderLog();
+}
+
+function filterLogData() {
+  const q = (document.getElementById("log-search").value || "").toLowerCase();
+  if (!q) return [...logData];
+  return logData.filter(e =>
+    e.user.toLowerCase().includes(q) ||
+    e.outcome.toLowerCase().includes(q) ||
+    e.role.toLowerCase().includes(q)
+  );
+}
+
+function filterLog() {
+  filteredLog = filterLogData();
+  currentLogPage = 1;
+  renderLog();
+}
+
+function renderLog() {
+  const tbody = document.getElementById("log-body");
+  const total = filteredLog.length;
+  const start = (currentLogPage - 1) * LOG_PAGE_SIZE;
+  const page  = filteredLog.slice(start, start + LOG_PAGE_SIZE);
+
+  tbody.innerHTML = page.length === 0
+    ? `<tr><td colspan="7" class="text-center text-muted py-4">No log entries found.</td></tr>`
+    : page.map(e => `
+        <tr>
+          <td>${e.ts}</td>
+          <td>${e.user}</td>
+          <td>${e.role}</td>
+          <td>${e.x}</td>
+          <td>${e.y}</td>
+          <td><span class="badge badge-${e.robotStatus}">${e.robotStatus}</span></td>
+          <td>
+            <span class="badge ${e.outcome === 'SUCCESS' ? 'bg-success' : 'bg-danger'}">
+              ${e.outcome}
+            </span>
+            ${e.errorReason ? `<small class="text-muted ms-1">${e.errorReason}</small>` : ""}
+          </td>
+        </tr>`).join("");
+
+  document.getElementById("log-info").textContent =
+    total === 0 ? "No entries" : `Showing ${start+1}–${Math.min(start+LOG_PAGE_SIZE, total)} of ${total}`;
+
+  // Pagination
+  const pages = Math.ceil(total / LOG_PAGE_SIZE);
+  const pag = document.getElementById("log-pagination");
+  pag.innerHTML = "";
+  for (let i = 1; i <= pages; i++) {
+    const li = document.createElement("li");
+    li.className = "page-item" + (i === currentLogPage ? " active" : "");
+    li.innerHTML = `<button class="page-link" onclick="goPage(${i})" aria-label="Page ${i}" ${i===currentLogPage?'aria-current="page"':''}>${i}</button>`;
+    pag.appendChild(li);
+  }
+}
+
+function goPage(n) { currentLogPage = n; renderLog(); }
+
+/* ── Seed some demo log entries ──────────────────────────────────────── */
+function seedLog() {
+  const entries = [
+    ["2026-03-13 10:04:50 UTC","alice","Commander",3,4,"IDLE","SUCCESS",null],
+    ["2026-03-13 10:03:12 UTC","alice","Commander",99,0,"IDLE","ERROR","422: Coordinate out of range"],
+    ["2026-03-13 10:01:30 UTC","bob","Commander",5,5,"MOVING","SUCCESS",null],
+    ["2026-03-13 09:58:44 UTC","alice","Commander",0,0,"IDLE","SUCCESS",null],
+    ["2026-03-13 09:55:10 UTC","bob","Commander",10,10,"STUCK","ERROR","503: Robot unreachable"],
+  ];
+  logData = entries.map(([ts,user,role,x,y,robotStatus,outcome,errorReason]) =>
+    ({ts,user,role,x,y,robotStatus,outcome,errorReason}));
+  filteredLog = [...logData];
+  renderLog();
+}
+
+/* ── Init ────────────────────────────────────────────────────────────── */
+updateTelemetry();
+seedLog();
+</script>
+</body>
+</html>

@@ -1,0 +1,15 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(cd C:\\\\Users\\\\KENDOCEE25\\\\Desktop\\\\semester B\\\\software engineering\\\\CMP9134---Robot-Management-System:*)",
+      "Bash(git push:*)",
+      "Bash(git commit:*)",
+      "Bash(python -c \"import pdfplumber; pdf = pdfplumber.open\\('C:/Users/KENDOCEE25/Desktop/semester B/software engineering/Week5/Workshop5_tasks.pdf'\\); [print\\(p.extract_text\\(\\)\\) for p in pdf.pages]\" 2>/dev/null || python -c \"import PyPDF2; reader = PyPDF2.PdfReader\\('C:/Users/KENDOCEE25/Desktop/semester B/software engineering/Week5/Workshop5_tasks.pdf'\\); [print\\(reader.pages[i].extract_text\\(\\)\\) for i in range\\(len\\(reader.pages\\)\\)]\")",
+      "Bash(pip install pymupdf -q && python -c \"\nimport fitz\ndoc = fitz.open\\('C:/Users/KENDOCEE25/Desktop/semester B/software engineering/Week5/Workshop5_tasks.pdf'\\)\nfor page in doc:\n    print\\(page.get_text\\(\\)\\)\n\")",
+      "Bash(cd \"C:/Users/KENDOCEE25/Desktop/semester B/software engineering/CMP9134---Robot-Management-System\" && mkdir -p server client && rm -f RobotClient.py)",
+      "Bash(python -c \"\nimport fitz\ndoc = fitz.open\\('C:/Users/KENDOCEE25/Desktop/semester B/software engineering/week6/Workshop6_tasks\\(1\\).pdf'\\)\nfor i, page in enumerate\\(doc\\):\n    print\\(f'--- PAGE {i+1} ---'\\)\n    print\\(page.get_text\\(\\)\\)\n\")",
+      "Bash(python -c \"\nimport fitz, sys\nsys.stdout.reconfigure\\(encoding='utf-8'\\)\ndoc = fitz.open\\('C:/Users/KENDOCEE25/Desktop/semester B/software engineering/week6/Workshop6_tasks\\(1\\).pdf'\\)\nfor i, page in enumerate\\(doc\\):\n    print\\(f'--- PAGE {i+1} ---'\\)\n    print\\(page.get_text\\(\\)\\)\n\" 2>&1 | python -c \"import sys; data=sys.stdin.buffer.read\\(\\); print\\(data.decode\\('utf-8', errors='replace'\\)\\)\")",
+      "Bash(python -c \"\nimport fitz, sys, io\nsys.stdout = io.TextIOWrapper\\(sys.stdout.buffer, encoding='utf-8', errors='replace'\\)\ndoc = fitz.open\\('C:/Users/KENDOCEE25/Desktop/semester B/software engineering/week6/Workshop6_tasks\\(1\\).pdf'\\)\nfor i, page in enumerate\\(doc\\):\n    print\\(f'--- PAGE {i+1} ---'\\)\n    print\\(page.get_text\\(\\)\\)\n\")"
+    ]
+  }
+}

@@ -17,4 +17,12 @@ This log documents all uses of AI assistance during this project, in accordance 
 
 ---
 
+| 6 | System Modelling — W4 Task 5 Component Diagram + Stack Update (W5) | Claude Sonnet 4.6 (Claude Code CLI) | "Add the missing W4 Task 5 Component Diagram to UML_DIAGRAMS.md. Update all documents to reflect the stack change from Flask/SQLite to React + Node.js/Express + MongoDB." | W4 Task 5 Component Diagram added to UML_DIAGRAMS.md showing all runtime components (React SPA, Express API, Auth Middleware, RBAC Enforcer, robotClient.js, Mongoose models, MongoDB, Virtual Robot). Design decision notes verified: no localhost hardcoding (US-10 AC), WebSocket direct to React SPA (latency justification), RBAC gating before robotClient (US-03 AC). Sequence Diagram SQL query (`SELECT role FROM users`) corrected to MongoDB syntax (`users.findOne({ sessionId: token })`). USER_STORIES.md US-09 updated to remove `pytest` reference (Python-specific, replaced by `npm test`). All W1–W5 documents cross-checked for stack consistency — no remaining Flask/SQLite/Python references found. |
+
+---
+
+| 7 | HCI & Design Thinking — W6 Lab Sheet (Tasks 1–4) | Claude Sonnet 4.6 (Claude Code CLI) | "Read Week 6 lecture and workshop. Create wireframes, heuristic evaluation, interactive Bootstrap 5 prototype, and accessibility audit for the Ground Control Station dashboard." | Task 1 (WIREFRAME.md): ASCII wireframes reviewed for completeness — verified all required elements present: navbar, telemetry panel, role indicator, 2D map, audit log. Fitts's Law annotation confirmed on Move button (full-width). Three interaction states drawn (default, validation error, MOVING). Task 2 (HCI_EVALUATION.md): All 8 Shneiderman rules and 7 Norman principles assessed. Four issues identified and fixed: disabled button visibility, coordinate range hint, cancel/stop action, audit log pagination. Task 3 (prototype.html): Interactive Bootstrap 5 dark-mode single-file prototype reviewed against wireframe — all panels present, role-switcher works, Move/Stop/Reset mock interactions functional, toast notifications visible, audit log with pagination and filter working. Task 4 (ACCESSIBILITY_AUDIT.md): Three-part audit performed — W3C structural (no hard errors), WebAIM contrast (danger badge darkened from ratio 3.9:1 to 7.2:1 to pass WCAG AA), keyboard navigation (all elements Tab-accessible, Enter submits form). All fixes applied to prototype.html before committing. |
+
+---
+
 *AI was not used to write any section of this report, generate figures or diagrams, or edit the video submission.*
