@@ -1,0 +1,9 @@
+version: '3.8'
+
+services:
+  test-runner:
+    build: ./server
+    # Override the normal server command to run the test framework instead!
+    command: npm test
+    depends_on:
+      - backend

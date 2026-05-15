@@ -66,8 +66,14 @@ class RobotClient {
    *   On failure: { error: "<reason>", status: "UNREACHABLE" }
    */
   async getStatus() {
-    // TODO: implement
-    throw new Error("getStatus() is not yet implemented.");
+    try {
+      const res = await axios.get(`${this._baseUrl}/api/status`, {
+        timeout: this._timeout,
+      });
+      return res.data;
+    } catch (err) {
+      return { error: err.message, status: "UNREACHABLE" };
+    }
   }
 
   /**
@@ -84,8 +90,25 @@ class RobotClient {
    *   { success: false, message: "<reason>",              statusCode: 503 }
    */
   async move(x, y) {
-    // TODO: implement
-    throw new Error("move() is not yet implemented.");
+    const reachable = await this._isResponsive();
+    if (!reachable) {
+      return { success: false, message: "Robot unreachable.", statusCode: 503 };
+    }
+    try {
+      const res = await axios.post(
+        `${this._baseUrl}/api/move`,
+        { x, y },
+        { timeout: this._timeout }
+      );
+      return {
+        success: true,
+        message: `Navigating to (${x}, ${y})`,
+        statusCode: res.status,
+      };
+    } catch (err) {
+      const statusCode = err.response ? err.response.status : 503;
+      return { success: false, message: err.message, statusCode };
+    }
   }
 
   /**
@@ -99,8 +122,14 @@ class RobotClient {
    *   { success: false, message: "<reason>" }
    */
   async reset() {
-    // TODO: implement
-    throw new Error("reset() is not yet implemented.");
+    try {
+      await axios.post(`${this._baseUrl}/api/reset`, null, {
+        timeout: this._timeout,
+      });
+      return { success: true, message: "Simulation reset." };
+    } catch (err) {
+      return { success: false, message: err.message };
+    }
   }
 
   // ------------------------------------------------------------------ //
@@ -116,8 +145,14 @@ class RobotClient {
    * @private
    */
   async _isResponsive() {
-    // TODO: implement
-    throw new Error("_isResponsive() is not yet implemented.");
+    try {
+      const res = await axios.get(`${this._baseUrl}/api/status`, {
+        timeout: this._timeout,
+      });
+      return res.status === 200;
+    } catch (err) {
+      return false;
+    }
   }
 }
 

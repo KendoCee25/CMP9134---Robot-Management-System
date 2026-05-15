@@ -1,0 +1,10 @@
+version: '3.8'
+
+services:
+  backend:
+    build: ./server
+    ports:
+      - "5000:5000"
+    environment:
+      - PORT=5000
+      - ROBOT_URL=http://robot:5000
