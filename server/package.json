@@ -10,17 +10,29 @@
   },
   "dependencies": {
     "axios": "^1.7.7",
-    "express": "^4.21.0"
+    "bcryptjs": "^2.4.3",
+    "express": "^4.21.0",
+    "jsonwebtoken": "^9.0.3",
+    "mongoose": "^8.24.0",
+    "ws": "^8.20.1"
   },
   "devDependencies": {
     "jest": "^29.7.0",
+    "mongodb-memory-server": "^10.4.3",
     "supertest": "^7.0.0"
   },
   "jest": {
     "testEnvironment": "node",
-    "testMatch": ["**/tests/**/*.test.js"],
+    "testMatch": [
+      "**/tests/**/*.test.js"
+    ],
+    "maxWorkers": 1,
+    "globalSetup": "<rootDir>/tests/globalSetup.js",
+    "globalTeardown": "<rootDir>/tests/globalTeardown.js",
     "collectCoverageFrom": [
       "*.js",
+      "models/*.js",
+      "routes/*.js",
       "!server.js",
       "!jest.config.js"
     ]

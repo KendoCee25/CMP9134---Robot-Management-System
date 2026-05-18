@@ -2,24 +2,27 @@
 
 **Project:** CMP9134 Robot Management System
 **Author:** KendoCee25 | University of Lincoln
-**Week:** 5 — Architecture, Patterns & Reuse (Lab Sheet 5)
+**Originated:** Week 5 — Architecture, Patterns & Reuse (Lab Sheet 5)
+**Last revised:** to reflect the live code in `server/` and `client/`.
 
 ---
 
-## 1. Chosen Tech Stack
+## 1. Chosen tech stack
 
-| Layer | Technology |
-|---|---|
-| User Interface | React (JavaScript, Vite) |
-| Backend / Controller | Node.js + Express |
-| Data / Model | MongoDB (via Mongoose ODM) |
-| HTTP Client (Robot API) | `axios` (inside `robotClient.js`) |
-| Deployment | Docker + Docker Compose |
-| Virtual Robot | Pre-built Docker image (Flask REST API) |
+| Layer | Technology | Notes |
+|---|---|---|
+| User Interface | React 19 + TypeScript + Vite | Dark-themed Bootstrap 5 dashboard |
+| Backend | Node.js + Express | HTTP API + WebSocket relay |
+| Authentication | bcryptjs + jsonwebtoken (HS256) | JWT bearer tokens, 12 h TTL |
+| Data store | MongoDB via Mongoose | `User` and `MissionLog` collections |
+| Robot client | `axios` (in `server/robotClient.js`) | Retry/backoff + EventEmitter |
+| Telemetry transport | WebSocket (`/ws/telemetry`) + polling fallback | Relayed by backend |
+| Deployment | Docker + Docker Compose | 4 services: mongo, robot, backend, frontend |
+| Virtual Robot | Pre-built Docker image | Provided by module — Flask + WS |
 
 ---
 
-## 2. Architectural Pattern
+## 2. Architectural pattern
 
 The Ground Control Station follows a **hybrid Layered + MVC architecture**.
 
@@ -27,124 +30,110 @@ The Ground Control Station follows a **hybrid Layered + MVC architecture**.
 
 | MVC Role | Technology | Responsibility |
 |---|---|---|
-| **View** | React SPA | Renders telemetry, 2D map, and command forms; dispatches user events via REST calls to the backend |
-| **Controller** | Express route handlers + middleware | Processes HTTP requests, enforces RBAC, validates input, orchestrates data flow |
-| **Model** | MongoDB + Mongoose schemas | Stores user accounts and mission log documents; encapsulates business data and state |
+| **View** | React SPA | Renders telemetry, 2D grid, command form, alerts, audit log |
+| **Controller** | Express route handlers + middleware | Validates input, enforces RBAC, orchestrates robot calls + persistence |
+| **Model** | Mongoose schemas (`User`, `MissionLog`) | Persists user credentials and the immutable mission log |
 
 **Layered mapping (top → bottom):**
 
 | Layer | Components | Responsibility |
 |---|---|---|
-| **UI Layer** | React (Vite SPA, port 3000) | Presents live telemetry and map; captures operator commands |
-| **Business Logic Layer** | Express routes, Auth middleware, RBAC enforcer, `robotClient.js` | Authentication, session management, role decisions, coordinate validation, outbound robot calls |
-| **Data Access Layer** | Mongoose models (`User`, `MissionLog`) | All database reads/writes; abstracts MongoDB documents from route handlers |
-| **System Layer** | MongoDB engine, Docker runtime, Virtual Robot container | Infrastructure; not written by this project |
-
-These two patterns are complementary: MVC describes *how requests flow* through the application; the Layered model describes *how code is organised* into tiers.
+| **UI** | `client/src/components/**` + `useTelemetry` hook | Presents live telemetry, captures operator commands, owns transport-state UX |
+| **Business Logic** | `server/app.js`, `routes/auth.js`, `auth.js`, `validation.js`, `wsRelay.js`, `robotClient.js` | Auth, RBAC, validation, outbound robot calls, WS relay |
+| **Data Access** | `server/models/User.js`, `server/models/MissionLog.js`, `server/db.js` | All Mongo reads/writes |
+| **System** | MongoDB, Virtual Robot container, Docker Compose | Infrastructure |
 
 ---
 
-## 3. Layered Architecture Diagram
+## 3. Layered architecture diagram
 
-```mermaid
-flowchart TB
-    U([Operator\nWeb Browser])
-
-    subgraph UI ["UI Layer — React SPA (port 3000)"]
-        Dashboard[Telemetry Panel]
-        MapView[2D Map View]
-        CmdForm[Command Form]
-    end
-
-    subgraph BL ["Business Logic Layer — Node.js / Express (port 5000)"]
-        Routes[Express Route Handlers]
-        Auth[Session & Auth Middleware\nexpress-session + bcrypt]
-        RBAC[RBAC Enforcer]
-        Validator[Coordinate Validator]
-        RC[robotClient.js\nSingleton + Facade]
-    end
-
-    subgraph DA ["Data Access Layer — Mongoose"]
-        UserModel[User Model\nMongoose Schema]
-        LogModel[MissionLog Model\nMongoose Schema]
-    end
-
-    subgraph SYS ["System Layer — Infrastructure"]
-        Mongo[(MongoDB\nport 27017)]
-        DockerNet[Docker Compose\nInternal Network]
-        VRobot[Virtual Robot\nFlask API :5000]
-    end
-
-    U -->|HTTP :3000| UI
-    UI -->|REST API / Axios| Routes
-    Routes --> Auth
-    Auth --> RBAC
-    Routes --> Validator
-    Routes --> RC
-    Routes --> UserModel
-    Routes --> LogModel
-    UserModel --- Mongo
-    LogModel --- Mongo
-    RC -->|POST /api/move\nGET /api/status\nPOST /api/reset| DockerNet
-    DockerNet --> VRobot
-```
+![3 layered architecture diagram](diagrams/architecture/01-3-layered-architecture-diagram.png)
 
 ---
 
-## 4. MVC Request Flow Diagram
+## 4. Design patterns in use
 
-```mermaid
-sequenceDiagram
-    participant V as View (React)
-    participant C as Controller (Express)
-    participant M as Model (Mongoose + robotClient)
-
-    V->>C: POST /api/command {x, y}
-    C->>C: Auth + RBAC check (session middleware)
-    C->>M: robotClient.move(x, y)
-    M-->>C: 200 OK / 503 Error
-    C->>M: MissionLog.create({...})
-    M-->>C: MongoDB write confirmed
-    C-->>V: JSON response
-    V->>V: Update telemetry state (React re-render)
-```
+| Pattern | File(s) | Role |
+|---|---|---|
+| **Singleton** | `server/robotClient.js` | One client to the robot per process; enforced via static slot + Node module cache. |
+| **Facade** | `server/robotClient.js` | Hides HTTP headers, timeouts, retry/backoff, and error mapping behind `getStatus / move / reset / getMap`. |
+| **Observer** | `server/robotClient.js` (extends `EventEmitter`), `server/wsRelay.js`, `client/src/components/ToastHost.tsx` | The client emits `connected / reconnecting / disconnected` events; the WS relay and toast bus broadcast to subscribers without polling. |
+| **Factory** | `server/users.js` (`createUser`), `server/auditLog.js` (`recordEntry`) | Canonical construction of validated user and audit-entry documents. |
+| **State machine** | `client/src/hooks/useTelemetry.ts` | `connecting → connected → reconnecting → lost` with WS-primary, polling-fallback, exponential-backoff retry. |
 
 ---
 
-## 5. Project Folder Structure
+## 5. Resilience strategy
+
+Per the brief: the robot API simulates latency and dropouts; the UI must never freeze. Two cooperating layers:
+
+**Server-side (`robotClient.js`):**
+- Exponential backoff: 250 ms → 4 s, capped.
+- Retries only 5xx / network errors / timeouts — never 4xx (validation faults are not transient).
+- Emits `connected / reconnecting / disconnected` state events. The WS relay subscribes and broadcasts to clients.
+
+**Client-side (`useTelemetry.ts`):**
+- Primary: WebSocket to `/ws/telemetry` (1 Hz push).
+- Fallback: HTTP polling `/api/status` after WS close, with the WS retried on exponential backoff (1 s → 30 s).
+- After `LOST_THRESHOLD = 3` consecutive failures the UI shows **Signal Lost**; the last sample is labelled `(stale)`.
+
+---
+
+## 6. Authentication & RBAC
+
+- Passwords hashed with **bcryptjs** (10 salt rounds) before persistence in `User`.
+- `POST /api/login` returns a signed JWT (HS256, 12 h TTL) with payload `{ sub: <username>, role: viewer | operator }`.
+- `authenticate` middleware verifies the JWT or, for the existing unit tests and quick curl checks, the two static demo tokens (`viewer-token`, `operator-token`). Static tokens can be disabled with `DISABLE_STATIC_TOKENS=1`.
+- `requireOperator` middleware enforces commander-only routes (`/api/move`, `/api/reset`).
+- The frontend `RequireAuth` guard redirects unauthenticated users to `/login`; the role flag in the JWT decoded inside `AuthContext` is what hides the Commander panel for viewers.
+
+---
+
+## 7. Mission audit log
+
+Every command — successful or failed — appends a `MissionLog` document with `{ timestamp, username, role, command, target, outcome, detail }`. Documents are append-only at the application layer (the dashboard reads but never mutates). Stored in MongoDB with an index on `timestamp` for newest-first pagination.
+
+---
+
+## 8. Project folder structure
 
 ```
 CMP9134---Robot-Management-System/
-├── client/                  ← React SPA (Vite)
+├── client/                              ← React SPA (Vite + TS)
 │   ├── src/
-│   │   ├── components/      ← TelemetryPanel, MapView, CommandForm
-│   │   ├── pages/           ← Dashboard, Login, AuditLog
-│   │   └── main.jsx
+│   │   ├── api/                         ← http.ts, robot.ts, auth.ts
+│   │   ├── auth/                        ← AuthContext.ts, AuthProvider.tsx
+│   │   ├── hooks/useTelemetry.ts        ← WS + polling state machine
+│   │   ├── components/                  ← Dashboard, GridMap, MoveControl, …
+│   │   └── App.tsx                      ← React Router wiring
+│   ├── Dockerfile + nginx.conf
 │   └── package.json
 │
-├── server/                  ← Express API (Node.js)
-│   ├── models/
-│   │   ├── User.js          ← Mongoose User schema
-│   │   └── MissionLog.js    ← Mongoose MissionLog schema
-│   ├── routes/
-│   │   ├── auth.js          ← /api/auth (login, register)
-│   │   ├── command.js       ← /api/command (move, reset)
-│   │   └── logs.js          ← /api/logs (audit log, GDPR delete)
-│   ├── middleware/
-│   │   ├── auth.js          ← session verification
-│   │   └── rbac.js          ← role enforcement
-│   ├── robotClient.js       ← Singleton + Facade (Task 2)
-│   └── server.js            ← Express app entry point
+├── server/                              ← Express API (Node.js)
+│   ├── app.js                           ← Express factory (testable)
+│   ├── server.js                        ← Process entry (HTTP + WS bind)
+│   ├── robotClient.js                   ← Singleton + Facade + Observer
+│   ├── wsRelay.js                       ← WS upgrade + robot WS relay
+│   ├── auth.js                          ← JWT + RBAC middleware
+│   ├── users.js                         ← bcrypt-hashed user CRUD
+│   ├── auditLog.js                      ← Mission audit append/list
+│   ├── validation.js                    ← Pure input validators
+│   ├── db.js                            ← Mongoose connect helper
+│   ├── models/                          ← User.js, MissionLog.js
+│   ├── routes/auth.js                   ← register / login
+│   └── tests/                           ← Jest suites + globalSetup (Mongo)
 │
-├── docker-compose.yml
-└── docs/
+├── docker-compose.yml                   ← mongo + robot + backend + frontend
+├── docker-compose.test.yml              ← CI integration overlay
+└── .github/workflows/ci-tests.yml       ← backend + frontend + integration
 ```
 
 ---
 
-## 6. Why This Architecture?
+## 9. Why this architecture?
 
-- **Separation of concerns:** React never queries MongoDB directly. Express routes never format HTML. Each layer has one job.
-- **Replaceability:** The React SPA could be swapped for a mobile app without touching the Express API. MongoDB could be replaced by PostgreSQL by rewriting the Mongoose models only.
-- **Security:** All RBAC enforcement lives inside the Express middleware — React cannot bypass it by manipulating client-side state.
-- **Testability:** `robotClient.js` and `CoordinateValidator` can be unit-tested in isolation because they do not depend on Express request context.
+- **Separation of concerns** — the dashboard never talks to MongoDB; Express never renders HTML; each layer has one job.
+- **Replaceability** — the React SPA could be swapped for a mobile client without touching the API; MongoDB could be swapped for PostgreSQL by rewriting only the two Mongoose models.
+- **Security** — RBAC lives in the Express middleware; the React UI cannot bypass it by manipulating client state. JWTs are signed and verified on every protected request.
+- **Testability** — `robotClient`, `validation`, and the Mongoose-backed stores can each be exercised in isolation. Jest covers the backend; Vitest + React Testing Library covers the frontend hook + key components. `mongodb-memory-server` gives the audit/auth tests real Mongo without a sidecar.
+- **Resilience** — every external call is wrapped by `_withRetry`; the dashboard never blocks waiting for the robot.

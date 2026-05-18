@@ -1,0 +1,66 @@
+classDiagram
+    class User {
+        +String username
+        -String passwordHash
+        +String role
+        +createdAt: Date
+    }
+
+    class MissionLog {
+        +String id
+        +Date timestamp
+        +String username
+        +String role
+        +CommandType command
+        +Position target
+        +Outcome outcome
+        +String detail
+    }
+    note for MissionLog "command ∈ {MOVE, RESET}\noutcome ∈ {SUCCESS, ERROR}\ntarget may be null for RESET"
+
+    class RobotClient {
+        <<Singleton, Facade, Observer (EventEmitter)>>
+        -String baseUrl
+        -int timeoutMs
+        -int retries
+        -int backoffBaseMs
+        -State connectionState
+        +getInstance(baseUrl) RobotClient$
+        +getStatus() Promise~Telemetry~
+        +getMap() Promise~Map~
+        +move(x, y) Promise~MoveResult~
+        +reset() Promise~ResetResult~
+        -_withRetry(op) Promise
+        -_transition(state) void
+        // emits "connected" / "reconnecting" / "disconnected"
+    }
+
+    class WSRelay {
+        -WebSocket upstream
+        -Set~Client~ subscribers
+        +attach(options) void
+        -connectUpstream() void
+        -broadcast(payload) void
+    }
+
+    class AuthMiddleware {
+        +authenticate(req, res, next) void
+        +requireOperator(req, res, next) void
+        +signToken(user) String
+        +verifyToken(token) Claims
+    }
+
+    class CoordinateValidator {
+        <<utility>>
+        +GRID_MIN: 0
+        +GRID_MAX: 20
+        +isValidTarget(x, y) bool
+        +canCommandRobot(role) bool
+    }
+
+    %% Relationships
+    User "1" --> "0..*" MissionLog : performs
+    AuthMiddleware ..> User : verifies via JWT claims
+    RobotClient ..> CoordinateValidator : input pre-checked by routes
+    WSRelay ..> RobotClient : both targeting the robot
+    RobotClient --|> EventEmitter

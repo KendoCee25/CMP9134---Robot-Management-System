@@ -1,0 +1,34 @@
+stateDiagram-v2
+    [*] --> ReceiveRequest : POST /api/move
+
+    ReceiveRequest --> VerifyJwt : Extract Bearer token
+
+    state verify_jwt <<choice>>
+    VerifyJwt --> verify_jwt
+
+    verify_jwt --> RejectUnauthorised : Missing / invalid JWT
+    verify_jwt --> CheckRole : JWT valid
+
+    state check_role <<choice>>
+    CheckRole --> check_role
+
+    check_role --> RejectForbidden : role == viewer
+    check_role --> ValidateCoordinates : role == operator
+
+    state check_coords <<choice>>
+    ValidateCoordinates --> check_coords
+
+    check_coords --> AuditAndReject422 : x or y outside 0..20
+    check_coords --> SendToRobot : Coordinates valid
+
+    state robot_result <<choice>>
+    SendToRobot --> robot_result
+
+    robot_result --> AuditSuccess : robot 200 OK
+    robot_result --> AuditError   : robot 5xx / unreachable (after retries)
+
+    AuditSuccess --> [*]
+    AuditError --> [*]
+    AuditAndReject422 --> [*]
+    RejectUnauthorised --> [*]
+    RejectForbidden --> [*]

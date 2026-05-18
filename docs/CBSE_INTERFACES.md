@@ -2,44 +2,44 @@
 
 **Project:** CMP9134 Robot Management System
 **Author:** KendoCee25 | University of Lincoln
-**Week:** 5 — Architecture, Patterns & Reuse (Lab Sheet 5 — Task 4)
+**Originated:** Week 5 — Architecture, Patterns & Reuse (Lab Sheet 5 — Task 4)
+**Last revised:** to match the implemented `server/auditLog.js` + `server/models/MissionLog.js`.
 
 ---
 
-## 1. Component Overview
+## 1. Component overview
 
 In Component-Based Software Engineering (CBSE), a component is an **abstract, stand-alone service provider** whose behaviour is defined entirely by its interfaces — what it *provides* to others and what it *requires* from the environment.
 
-The **Mission Logger** is a dedicated CBSE component responsible for creating an immutable audit trail of every command issued through the Ground Control Station. It operates independently of the Express route handlers and can, in principle, be replaced or upgraded (e.g., swapping MongoDB for PostgreSQL) without touching any other component.
+The **Mission Logger** (`server/auditLog.js`) is a dedicated CBSE component responsible for creating an immutable audit trail of every command issued through the Ground Control Station. It operates independently of the Express route handlers and could, in principle, be swapped for a different storage backend (PostgreSQL, S3, etc.) without touching any other component — the only consumers of its API are `server/app.js` (which appends entries when commands run) and `GET /api/audit` (which lists them).
 
 ---
 
-## 2. Provides Interface
+## 2. Provides interface
 
-These are the services the Mission Logger exposes to the rest of the backend:
+These are the services the Mission Logger exposes to the rest of the backend (exact signatures from `server/auditLog.js`):
 
 | Method | Signature | Description |
 |---|---|---|
-| `logCommand` | `logCommand(user: string, role: string, x: number, y: number, robotStatus: string, outcome: string, errorReason?: string) → Promise<void>` | Creates an immutable audit document for a command (successful or failed). Both moves and errors are recorded. |
-| `getAll` | `getAll() → Promise<LogEntry[]>` | Returns all audit log documents in chronological order. Used by the Auditor role via `GET /api/logs`. |
-| `getByUser` | `getByUser(username: string) → Promise<LogEntry[]>` | Returns all log entries attributed to a specific user. Supports a Commander reviewing their own history. |
-| `deleteByUser` | `deleteByUser(username: string) → Promise<number>` | Permanently deletes all entries for a user. Required for GDPR Right to Erasure (US-08). Returns the count of deleted documents. |
-| `exportLogs` | `exportLogs(format: 'csv' \| 'json') → Promise<Buffer>` | Exports the full audit log as CSV or JSON for compliance reporting. |
+| `recordEntry` | `recordEntry({ username, role, command, target, outcome, detail }) → Promise<Entry>` | Appends an immutable audit document. `command ∈ { "MOVE", "RESET" }`; `outcome ∈ { "SUCCESS", "ERROR" }`. Both successful commands and failed/invalid ones are recorded. |
+| `listEntries` | `listEntries({ limit }) → Promise<Entry[]>` | Returns the most recent entries, newest-first, capped at `limit` (defaults to `LIST_LIMIT = 500`). Drives the dashboard's audit-log table. |
+| `_reset` | `_reset() → Promise<void>` | **Test-only.** Wipes the audit collection between Jest specs. Underscore-prefixed to discourage production use. |
 
 ---
 
-## 3. Requires Interface
+## 3. Requires interface
 
-These are the external services the Mission Logger **depends on** to function. It does not implement these itself — it requires them to be provided by the surrounding system.
+These are the external services the Mission Logger **depends on** to function. It does not implement them itself.
 
-| External Service | Type | Why it is needed |
+| External service | Concrete provider | Why it is needed |
 |---|---|---|
-| **Database Connection** | MongoDB (via Mongoose) | The Logger writes and reads log documents from a durable store. Without an active Mongoose connection, entries cannot be persisted across container restarts. |
-| **System Clock / Timestamp Service** | Node.js `Date` / `Date.now()` | Every log entry must record a UTC timestamp at the exact moment the command was issued. |
+| **`MissionLog` model** | Mongoose model in `server/models/MissionLog.js` | Provides `create`, `find`, `deleteMany`, and `toJSON` mapping for persistence. |
+| **MongoDB connection** | `server/db.js` (`mongoose.connect`) | The model is bound to a live Mongoose connection — without one, `create` and `find` reject. |
+| **System clock** | Node `Date` (via Mongoose's `default: () => new Date()`) | Every entry records a UTC timestamp at the moment it is created. |
 
 ---
 
-## 4. UML Ball-and-Socket Notation
+## 4. UML ball-and-socket notation
 
 The "ball" (lollipop) represents the **Provides** interface — a service offered outward.
 The "socket" (open arc) represents the **Requires** interface — a dependency that must be satisfied by the environment.
@@ -47,12 +47,11 @@ The "socket" (open arc) represents the **Requires** interface — a dependency t
 ```
                          ┌─────────────────────────┐
                          │                         │
-   logCommand ───────●   │                         │   ○──── MongoDB
-   getAll     ───────●   │    Mission Logger       │        Connection
-   getByUser  ───────●   │       Component         │        (Mongoose)
-   deleteByUser──────●   │                         │
-   exportLogs ───────●   │                         │   ○──── System Clock /
-                         │                         │        Timestamp Service
+   recordEntry ──────●   │                         │   ○──── MissionLog
+   listEntries ─────●    │    Mission Logger       │        Mongoose model
+   _reset (test)  ──●    │  (server/auditLog.js)   │   ○──── MongoDB
+                         │                         │        connection
+                         │                         │   ○──── System clock
                          └─────────────────────────┘
 ```
 
@@ -62,76 +61,48 @@ The "socket" (open arc) represents the **Requires** interface — a dependency t
 
 ---
 
-## 5. Mermaid Diagram (Structural View)
+## 5. Mermaid diagram (structural view)
 
-```mermaid
-classDiagram
-    class MissionLogger {
-        <<component>>
-        +logCommand(user, role, x, y, robotStatus, outcome, errorReason) Promise
-        +getAll() Promise
-        +getByUser(username) Promise
-        +deleteByUser(username) Promise
-        +exportLogs(format) Promise
-    }
-
-    class MongooseConnection {
-        <<interface>>
-        +create(document) Promise
-        +find(query) Promise
-        +deleteMany(query) Promise
-    }
-
-    class TimestampService {
-        <<interface>>
-        +now() Date
-    }
-
-    MissionLogger ..> MongooseConnection : requires
-    MissionLogger ..> TimestampService : requires
-
-    class CommandRoutes {
-        <<client>>
-    }
-
-    class AuditRoutes {
-        <<client>>
-    }
-
-    CommandRoutes --> MissionLogger : uses (logCommand)
-    AuditRoutes --> MissionLogger : uses (getAll, getByUser, deleteByUser)
-```
+![5 mermaid diagram structural view](diagrams/cbse-interfaces/01-5-mermaid-diagram-structural-view.png)
 
 ---
 
-## 6. Mongoose Schema (MissionLog Model)
+## 6. Mongoose schema (actual)
 
-The `MissionLog` Mongoose schema implements the Provides interface's data contract:
+The `MissionLog` Mongoose schema implements the Provides interface's data contract (verbatim from `server/models/MissionLog.js`):
 
 ```js
-// server/models/MissionLog.js
-const mongoose = require("mongoose");
-
 const missionLogSchema = new mongoose.Schema({
-  username:          { type: String, required: true },
-  role:              { type: String, required: true, enum: ["Commander", "Viewer", "Auditor"] },
-  targetX:           { type: Number, required: true },
-  targetY:           { type: Number, required: true },
-  robotStatusAtCmd:  { type: String, required: true },
-  outcome:           { type: String, required: true, enum: ["SUCCESS", "ERROR"] },
-  errorReason:       { type: String, default: null },
-  timestamp:         { type: Date,   default: Date.now },
+  timestamp: { type: Date, default: () => new Date(), index: true },
+  username:  { type: String, required: true },
+  role:      { type: String, required: true },
+  command:   { type: String, enum: ["MOVE", "RESET"], required: true },
+  target:    { type: { x: Number, y: Number }, default: null, _id: false },
+  outcome:   { type: String, enum: ["SUCCESS", "ERROR"], required: true },
+  detail:    { type: String, default: null },
 });
 
-// Immutability: no update/edit operations defined — documents are write-once
-module.exports = mongoose.model("MissionLog", missionLogSchema);
+// `toJSON` maps `_id → id` and strips `__v` so the wire shape is stable.
+// Documents are append-only at the application layer — no `update` or
+// per-document `delete` operation is exposed.
 ```
+
+| Field | Purpose |
+|---|---|
+| `timestamp` | UTC time the command was processed (indexed for newest-first paging). |
+| `username` | Logged-in user (`sub` claim from the JWT, or the static-token identity in dev). |
+| `role` | Role at the time the command was issued (`viewer` / `operator`). |
+| `command` | Either `MOVE` or `RESET`. |
+| `target` | `{x, y}` for moves; `null` for resets and missing-coord error rows. |
+| `outcome` | `SUCCESS` if the robot acknowledged with 2xx; `ERROR` for any other terminal state. |
+| `detail` | Free-text reason for an error row (e.g. `"Invalid coordinates"`, `"HTTP 503"`). |
 
 ---
 
-## 7. Design Decisions
+## 7. Design decisions
 
-- **Immutability:** The Provides Interface exposes no `update` or `edit` method. Log documents are write-once — an audit trail that can be modified defeats its own purpose. The only deletion operation is `deleteByUser`, which exists exclusively for GDPR compliance (US-08).
-- **GDPR awareness:** `deleteByUser` is part of the Provides interface because the Mission Logger is the sole authority over its own MongoDB collection. The Express route for GDPR deletion delegates entirely to this method.
-- **Decoupling via Requires:** By declaring `MongooseConnection` and `TimestampService` as *required interfaces* rather than hard-coding them, the Mission Logger can be tested with mock implementations (e.g., an in-memory array instead of MongoDB) without any changes to the component itself.
-- **Independence:** The Mission Logger does not call `robotClient.js`, `rbac.js`, or any other component. It is a **pure data recorder** — it receives facts about what happened and stores them.
+- **Immutability** — the Provides interface exposes no `update` or per-document `delete`. Log documents are write-once. An audit trail that can be silently edited defeats its own purpose.
+- **Append-only auditability** — even *failed* commands and invalid coordinates create an entry (`outcome=ERROR`). The brief requires every command intent to be auditable, not just successful ones.
+- **Decoupling via Requires** — by depending on the `MissionLog` Mongoose model (not on `mongoose` itself) and on the system clock, the logger can be tested with `mongodb-memory-server` in `globalSetup.js` without any code change.
+- **Independence** — the logger does not call `robotClient.js`, the auth middleware, or any other component. It is a *pure data recorder*: it receives facts about what happened and stores them.
+- **Stable wire shape** — the `toJSON` transform maps Mongo's `_id` to `id` so the React audit-log table can use a typed `AuditEntry` model without leaking Mongo internals.

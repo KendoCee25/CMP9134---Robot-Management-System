@@ -2,10 +2,11 @@
 
 **Project:** CMP9134 Robot Management System
 **Author:** KendoCee25 | University of Lincoln
-**Week:** 4 — Software System Modelling (Lab Sheet 4)
+**Originated:** Week 4 — Software System Modelling (Lab Sheet 4)
+**Last revised:** to match the implemented code in `server/` and `client/`.
 **Tool:** Mermaid.js (render on GitHub or at https://mermaid.live)
 
-All diagrams were designed from the system requirements in `USER_STORIES.md` and the live API behaviour documented in `API_ANALYSIS.md`.
+All diagrams trace back to the requirements in `USER_STORIES.md` and the live API behaviour in `API_ANALYSIS.md`.
 
 ---
 
@@ -14,296 +15,66 @@ All diagrams were designed from the system requirements in `USER_STORIES.md` and
 **Goal:** Map the Role-Based Access Control (RBAC) requirements — who uses the Ground Control Station and what each actor is permitted to do.
 
 **Actors:**
-- **Commander** — full control: can view telemetry, send movement commands, and reset the simulation
-- **Viewer** — read-only: can monitor telemetry and map, cannot issue commands
-- **Auditor** — administrative: can view the audit log for compliance review
+- **Commander** (`role = operator`) — full control: telemetry, map, audit log, plus move + reset.
+- **Viewer** (`role = viewer`) — read-only: telemetry, map, audit log.
 
-```mermaid
-flowchart LR
-    %% Actors (outside system boundary)
-    C([Commander])
-    V([Viewer])
-    A([Auditor])
-    RS([Virtual Robot\nSimulator])
-
-    subgraph GCS [Ground Control Station]
-        Login((Login))
-        Register((Register))
-        ViewTelemetry((View Telemetry))
-        ViewMap((View 2D Map))
-        ViewAuditLog((View Audit Log))
-        MoveRobot((Move Robot))
-        ResetSim((Reset Simulation))
-        DeleteData((Request GDPR\nData Deletion))
-    end
-
-    %% Commander permissions
-    C --> Login
-    C --> Register
-    C --> ViewTelemetry
-    C --> ViewMap
-    C --> ViewAuditLog
-    C --> MoveRobot
-    C --> ResetSim
-    C --> DeleteData
-
-    %% Viewer permissions (read-only)
-    V --> Login
-    V --> Register
-    V --> ViewTelemetry
-    V --> ViewMap
-    V --> ViewAuditLog
-    V --> DeleteData
-
-    %% Auditor permissions
-    A --> Login
-    A --> ViewAuditLog
-
-    %% Robot Simulator as external system
-    MoveRobot --> RS
-    ResetSim --> RS
-```
+![task 1 use case diagram external perspective](diagrams/uml-diagrams/01-task-1-use-case-diagram-external-perspective.png)
 
 **Design decisions:**
-- `Move Robot` and `Reset Simulation` are connected to the Virtual Robot Simulator as an external actor — the GCS is the system boundary, the simulator is outside it.
-- `Viewer` has no line to `Move Robot` or `Reset Simulation` — RBAC is enforced at the system boundary, not just the UI (per US-03 AC).
-- `Auditor` is a distinct actor rather than a role variant of Viewer, as audit access is a compliance-only concern.
-- `DeleteData` is available to both Commander and Viewer — any authenticated user has GDPR Right to Erasure over their own records (US-08 AC).
+- `Move Robot` and `Reset Simulation` connect to the Virtual Robot as an external actor — the GCS is the system boundary, the simulator is outside it.
+- `Viewer` has no edge to `Move Robot` or `Reset Simulation` — RBAC is enforced in the backend (`requireOperator` in `server/auth.js`), not just hidden in the UI.
 
 ---
 
-## Task 2 — Activity Diagram (Behavioral Perspective)
+## Task 2 — Activity Diagram (Behavioural Perspective)
 
-**Goal:** Model the backend business logic executed when a Commander attempts to send a `POST /api/move` command — including role enforcement, coordinate validation, robot API responsiveness, and audit logging.
+**Goal:** Model the backend business logic executed when a Commander sends a `POST /api/move`.
 
-```mermaid
-stateDiagram-v2
-    [*] --> ReceiveRequest : POST /api/move received
-
-    ReceiveRequest --> CheckSession : Extract session token
-
-    state check_session <<choice>>
-    CheckSession --> check_session
-
-    check_session --> RejectUnauthorised : No valid session
-    check_session --> CheckRole : Session valid
-
-    state check_role <<choice>>
-    CheckRole --> check_role
-
-    check_role --> RejectForbidden : Role is Viewer
-    check_role --> ValidateCoordinates : Role is Commander
-
-    state check_coords <<choice>>
-    ValidateCoordinates --> check_coords
-
-    check_coords --> RejectInvalid : x or y outside 0–20
-    check_coords --> SendToRobot : Coordinates valid
-
-    state check_api <<choice>>
-    SendToRobot --> check_api
-
-    check_api --> LogSuccess : Robot API responsive (200 OK)
-    check_api --> LogError : Robot API unreachable (503)
-
-    LogSuccess --> [*]
-    LogError --> [*]
-    RejectUnauthorised --> [*]
-    RejectForbidden --> [*]
-    RejectInvalid --> [*]
-```
+![task 2 activity diagram behavioural perspective](diagrams/uml-diagrams/02-task-2-activity-diagram-behavioural-perspective.png)
 
 **Design decisions:**
-- Session check happens **before** role check — an unauthenticated request is rejected immediately with `401` before any RBAC logic runs.
-- Coordinate validation (0–20) is enforced **server-side** even though the UI also validates — this matches the `NavigationRequest` schema in `/openapi.json` (confirmed in API_ANALYSIS.md).
-- Both `LogSuccess` and `LogError` write to the audit log — failed commands are recorded with their error reason (US-08 AC: "Failed commands are also logged with their error reason").
-- The split after `SendToRobot` models the `STUCK`/`503` failure scenario identified in the stakeholder persona review (US-07 AC: "Signal lost while robot is MOVING").
+- JWT verification happens **before** role check — an unauthenticated request is rejected with `401` before any RBAC logic runs.
+- Coordinate validation (0–20) is enforced **server-side** even though the UI also validates — matches the robot's `NavigationRequest` schema.
+- Invalid coordinates are **also audited** (with `outcome=ERROR`, `detail=Invalid coordinates`) — the brief requires every command attempt to be auditable.
+- The robot leg is retried with exponential backoff inside `robotClient._withRetry` before the failure path is taken.
 
 ---
 
 ## Task 3 — Class Diagram (Structural / OOP Perspective)
 
-**Goal:** Define the Object-Oriented architecture of the backend — classes, attributes, methods, and their relationships.
+**Goal:** Define the OO architecture of the backend — the classes, design patterns, and their relationships.
 
-```mermaid
-classDiagram
-    class User {
-        -String username
-        -String passwordHash
-        -String role
-        +register(username String, password String) bool
-        +login(username String, password String) bool
-        +getRole() String
-        +requestDataDeletion() void
-    }
-
-    class Session {
-        -String sessionId
-        -String username
-        -String role
-        -DateTime createdAt
-        +validate() bool
-        +invalidate() void
-        +getRole() String
-    }
-
-    class RobotController {
-        -String apiEndpoint
-        +getStatus() JSON
-        +getMap() JSON
-        +moveRobot(x int, y int) bool
-        +resetSimulation() bool
-        +isResponsive() bool
-    }
-
-    class MissionLog {
-        -int id
-        -String username
-        -String role
-        -int targetX
-        -int targetY
-        -String robotStatusAtCommand
-        -DateTime timestamp
-        -String outcome
-        -String errorReason
-        +createEntry(username String, role String, x int, y int, status String, outcome String, error String) void
-        +getAllEntries() List
-        +getEntriesByUser(username String) List
-        +deleteEntriesByUser(username String) void
-    }
-
-    class CoordinateValidator {
-        -int MIN_COORD
-        -int MAX_COORD
-        +validate(x int, y int) bool
-        +sanitise(value int) int
-    }
-
-    %% Relationships
-    User "1" --> "1" Session : creates on login
-    Session "1" --> "1" RobotController : authorises
-    RobotController "1" *-- "0..*" MissionLog : composes audit entries
-    RobotController "1" --> "1" CoordinateValidator : uses
-    User "1" --> "0..*" MissionLog : owns entries
-```
+![task 3 class diagram structural oop perspective](diagrams/uml-diagrams/03-task-3-class-diagram-structural-oop-perspective.png)
 
 **Design decisions:**
-- `passwordHash` is private (`-`) — password is never stored in plain text and is not accessible outside the class (US-01 AC: "hashed with Bcrypt").
-- `role` is stored on both `User` (in DB) and `Session` (in memory) — the session role is read from the DB on every request, never trusted from the client claim (US-03 AC: "Role is read from server-side session/database on every request").
-- `MissionLog` uses **composition** with `RobotController` (filled diamond) — log entries are created by the controller and cannot exist without it being invoked. However, log entries themselves are **immutable** — no `update` or `delete` operation exists on entries, only `deleteEntriesByUser` for GDPR compliance (US-08 AC).
-- `CoordinateValidator` is a separate class with its own `MIN_COORD`/`MAX_COORD` constants — makes the 0–20 constraint a single source of truth, testable in isolation (US-09 AC: "Unit tests cover coordinate validation").
-- `errorReason` on `MissionLog` captures 422/503 error details for failed commands.
+- `RobotClient` carries three stereotypes — **Singleton** (one instance per process), **Facade** (`getStatus/move/reset/getMap` hide HTTP + retry + error mapping), and **Observer** (extends `EventEmitter`, emits connection-state transitions). These satisfy three of the four design patterns the brief names by example.
+- `MissionLog` is **immutable** at the application layer — no `update` or `delete` is exposed on it; only append (`recordEntry`) and read (`listEntries`).
+- `CoordinateValidator` is a pure module (`validation.js`) — testable in isolation without Express or Mongo.
+- Auth state lives in a **signed JWT**, not a server-side session table. The claims `{ sub, role }` are the source of truth on every request — they are never trusted from a client-sent body.
 
 ---
 
 ## Task 4 — Sequence Diagram (Interaction Perspective)
 
-**Goal:** Trace the full chronological execution of a `Move Robot` command — from the Commander clicking the UI button, through session verification, robot API call, and audit log write, back to the UI.
+**Goal:** Trace the full chronology of a `Move Robot` command — UI click → JWT verification → robot call → audit write → UI update.
 
-```mermaid
-sequenceDiagram
-    actor C as Commander
-    participant UI as React Dashboard
-    participant API as Node.js/Express Backend
-    participant DB as MongoDB (Mongoose)
-    participant Sim as Virtual Robot (Docker)
-
-    C->>UI: Enter X=5, Y=10 and click 'Move'
-    UI->>UI: Client-side validation (0–20, required fields)
-
-    UI->>API: POST /api/command {x: 5, y: 10}
-    activate API
-
-    API->>API: Verify session token
-    API->>DB: users.findOne({ sessionId: token })
-    DB-->>API: role = "Commander"
-
-    alt Role is Viewer
-        API-->>UI: 403 Forbidden
-        deactivate API
-    else Role is Commander
-        API->>API: Validate coordinates (0 ≤ x,y ≤ 20)
-
-        alt Coordinates invalid (422)
-            API-->>UI: 422 Unprocessable Entity
-            deactivate API
-        else Coordinates valid
-            API->>Sim: POST /api/move {x: 5, y: 10}
-
-            alt Sim responsive
-                Sim-->>API: 200 OK {status: MOVING}
-                API->>DB: INSERT INTO mission_log (username, role, x, y, status, outcome, timestamp)
-                DB-->>API: Write confirmed
-                API-->>UI: 200 OK {message: "Navigating to (5, 10)"}
-            else Sim unreachable (503)
-                API->>DB: INSERT INTO mission_log (username, role, x, y, status, outcome="ERROR", error_reason="503")
-                DB-->>API: Write confirmed
-                API-->>UI: 503 Service Unavailable
-            end
-
-            deactivate API
-        end
-    end
-```
+![task 4 sequence diagram interaction perspective](diagrams/uml-diagrams/04-task-4-sequence-diagram-interaction-perspective.png)
 
 **Design decisions:**
-- Session token is verified against the **database** on every request — the role is never read from a client-provided claim (US-03 AC: "Role is read from server-side session/database on every request").
-- The `DB` participant appears **before** `Sim` in the auth step and **after** `Sim` in the log step — this correctly models that auth is a prerequisite to calling the robot, and logging is a consequence of the outcome.
-- Both the `200 OK` and `503` paths write to the audit log — failed commands are still recorded (US-08 AC).
-- The `alt` block for role check exits early (`deactivate API`) — the backend terminates the request immediately on a 403, it does not proceed further down the chain.
-- Client-side validation is shown as a self-call on `UI` before the API request — this reflects the AC that "client-side validation blocks the request" but does not replace server-side validation.
+- The JWT is verified by signature, not against a DB lookup — that's the whole point of using JWTs over server-side sessions. The role used for the RBAC check is the role in the signed claims.
+- Audit writes happen on **every terminal branch except 401/403** — the brief requires every command intent (including 422s) to be auditable. 401s aren't audited because we never reach the route handler.
+- The robot call is wrapped inside `robotClient._withRetry`; the failure path on this diagram only fires *after* exponential backoff retries have been exhausted.
 
 ---
 
 ## Task 5 — Component Diagram (Deployment & Interface Perspective)
 
-**Goal:** Show the high-level runtime components of the system, their provided/required interfaces, and how they connect across Docker containers.
+**Goal:** Show the high-level runtime components, their interfaces, and how they connect across Docker containers.
 
-```mermaid
-flowchart TB
-    subgraph Browser ["<<device>> Operator Browser"]
-        ReactSPA["<<component>>\nReact SPA\n(Vite :3000)"]
-    end
-
-    subgraph GCS ["<<container>> Ground Control Station"]
-        subgraph ExpressApp ["<<component>> Express API (Node.js :5000)"]
-            AuthMW["<<component>>\nAuth Middleware\n(express-session + bcrypt)"]
-            RBAC["<<component>>\nRBAC Enforcer"]
-            RobotClient["<<component>>\nrobotClient.js\n(Singleton + Facade)"]
-        end
-
-        subgraph DataLayer ["<<component>> Data Access (Mongoose)"]
-            UserModel["<<component>>\nUser Model"]
-            LogModel["<<component>>\nMissionLog Model"]
-        end
-
-        MongoDB[("<<component>>\nMongoDB\n:27017")]
-    end
-
-    subgraph RobotContainer ["<<container>> Virtual Robot Simulator"]
-        RobotAPI["<<component>>\nFlask REST API\n:5000"]
-        WSStream["<<component>>\nWebSocket\n/ws/telemetry"]
-    end
-
-    %% Browser → GCS
-    ReactSPA -- "REST /api/*\n(Axios)" --> ExpressApp
-    ExpressApp --> AuthMW
-    AuthMW --> RBAC
-    ExpressApp --> RobotClient
-
-    %% GCS Data Layer
-    ExpressApp -- "Mongoose ODM" --> DataLayer
-    UserModel -- "read/write" --> MongoDB
-    LogModel  -- "read/write" --> MongoDB
-
-    %% GCS → Robot
-    RobotClient -- "POST /api/move\nGET /api/status\nPOST /api/reset" --> RobotAPI
-    WSStream   -- "telemetry stream\n(1Hz)" --> ReactSPA
-```
+![task 5 component diagram deployment interface perspective](diagrams/uml-diagrams/05-task-5-component-diagram-deployment-interface-perspective.png)
 
 **Design decisions:**
-- `robotClient.js` is shown as a component inside the Express App layer — it is a Facade that the route handlers call; it never exposes itself directly to React (US-03 AC: all robot commands are gated by RBAC before reaching the client).
-- The WebSocket stream (`/ws/telemetry`) connects **directly** from the Virtual Robot container to the React SPA — this is intentional. Routing it through Express would add unnecessary latency for a 1Hz live feed; the Express backend handles commands, not the telemetry stream.
-- No `localhost` references appear in the diagram — all inter-container communication uses Docker Compose service names (`robot`, `mongo`), satisfying US-10 AC: "No hardcoded localhost references in production code."
-- `MongoDB` is a separate logical component within the GCS container (deployed via Docker Compose alongside Express) — it is not an external cloud service, satisfying the GDPR data residency concern in the Privacy Policy.
-- `Auth Middleware` and `RBAC Enforcer` are shown as sub-components of the Express App — they are not standalone services, but they are architecturally distinct responsibilities that could be extracted into microservices in a future iteration.
+- The dashboard **never talks to the robot directly**. Both REST and WebSocket traffic terminate at the backend, which enforces JWT auth + RBAC on every request and relays the WS so a single upstream connection is shared by all browser subscribers.
+- nginx serves the built SPA inside `gcs-frontend` and reverse-proxies `/api` and `/ws` to `gcs-backend` (see `client/nginx.conf`).
+- All inter-container references use Docker Compose service names (`mongo`, `robot`, `backend`) — no hard-coded localhosts.
+- The four containers are wired in `docker-compose.yml`; the backend `depends_on` mongo with a `service_healthy` condition so the audit log writes never race the database boot.

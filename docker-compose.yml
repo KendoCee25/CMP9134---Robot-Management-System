@@ -1,10 +1,62 @@
 version: '3.8'
 
+# Full Ground Control Station stack:
+#   mongo     — persistent store for Users and MissionLog (audit trail)
+#   robot     — Virtual Robot simulator (provided container)
+#   backend   — Express API + WebSocket relay
+#   frontend  — React dashboard served via nginx
+#
+# Browser hits http://localhost:3000 → nginx serves the SPA and proxies
+# /api and /ws to the backend on the internal network.
+
 services:
+  mongo:
+    image: mongo:7
+    container_name: gcs-mongo
+    ports:
+      - "27017:27017"   # exposed for ad-hoc inspection; backend talks via internal network
+    volumes:
+      - mongo-data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.runCommand({ ping: 1 }).ok"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  robot:
+    image: ghcr.io/francescodelduchetto/cmp9134_2526_robotsim:latest
+    container_name: gcs-robot
+    ports:
+      - "5050:5000"   # exposed for ad-hoc curl/inspection; backend talks via the internal network
+    restart: unless-stopped
+
   backend:
     build: ./server
-    ports:
-      - "5000:5000"
+    container_name: gcs-backend
     environment:
       - PORT=5000
       - ROBOT_URL=http://robot:5000
+      - MONGO_URL=mongodb://mongo:27017/robot-gcs
+      - JWT_SECRET=${JWT_SECRET:-dev-secret-change-me}
+      - JWT_TTL=${JWT_TTL:-12h}
+    depends_on:
+      mongo:
+        condition: service_healthy
+      robot:
+        condition: service_started
+    ports:
+      - "5000:5000"
+    restart: unless-stopped
+
+  frontend:
+    build: ./client
+    container_name: gcs-frontend
+    depends_on:
+      - backend
+    ports:
+      - "3000:80"
+    restart: unless-stopped
+
+volumes:
+  mongo-data:

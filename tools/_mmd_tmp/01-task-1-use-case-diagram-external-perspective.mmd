@@ -1,0 +1,34 @@
+flowchart LR
+    C([Commander])
+    V([Viewer])
+    RS([Virtual Robot\nSimulator])
+
+    subgraph GCS [Ground Control Station]
+        Register((Register))
+        Login((Login))
+        ViewTelemetry((View Telemetry))
+        ViewMap((View 2D Map))
+        ViewAuditLog((View Audit Log))
+        MoveRobot((Move Robot))
+        ResetSim((Reset Simulation))
+    end
+
+    %% Commander permissions
+    C --> Register
+    C --> Login
+    C --> ViewTelemetry
+    C --> ViewMap
+    C --> ViewAuditLog
+    C --> MoveRobot
+    C --> ResetSim
+
+    %% Viewer permissions (read-only)
+    V --> Register
+    V --> Login
+    V --> ViewTelemetry
+    V --> ViewMap
+    V --> ViewAuditLog
+
+    %% External system
+    MoveRobot --> RS
+    ResetSim --> RS

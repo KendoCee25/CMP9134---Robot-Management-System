@@ -1,9 +1,16 @@
 version: '3.8'
 
+# Compose overlay used by CI to run the backend Jest suite inside Docker.
+# Layered on top of docker-compose.yml so the robot + backend containers
+# are reachable via the standard service names during integration tests.
+
 services:
   test-runner:
     build: ./server
-    # Override the normal server command to run the test framework instead!
     command: npm test
+    environment:
+      - ROBOT_URL=http://robot:5000
+      - JWT_SECRET=test-secret
     depends_on:
       - backend
+      - robot

@@ -1,0 +1,35 @@
+flowchart TB
+    subgraph Browser ["&lt;&lt;device&gt;&gt; Operator Browser"]
+        SPA["&lt;&lt;component&gt;&gt;\nReact SPA :3000\n(Vite build, served via nginx)"]
+    end
+
+    subgraph Compose ["&lt;&lt;deployment&gt;&gt; Docker Compose"]
+        subgraph Backend ["&lt;&lt;container&gt;&gt; gcs-backend (Node :5000)"]
+            Routes["&lt;&lt;component&gt;&gt;\nExpress route handlers\napp.js"]
+            AuthC["&lt;&lt;component&gt;&gt;\nAuth + RBAC\nauth.js"]
+            ARoutes["&lt;&lt;component&gt;&gt;\nregister / login\nroutes/auth.js"]
+            RClient["&lt;&lt;component&gt;&gt;\nRobotClient\nSingleton+Facade+Observer"]
+            WSR["&lt;&lt;component&gt;&gt;\nWS Relay\nwsRelay.js"]
+        end
+
+        subgraph Data ["&lt;&lt;container&gt;&gt; gcs-mongo :27017"]
+            Mongo[(MongoDB)]
+        end
+
+        subgraph Robot ["&lt;&lt;container&gt;&gt; gcs-robot (Flask + WS :5000)"]
+            RAPI["&lt;&lt;component&gt;&gt;\nRobot REST API"]
+            RWS["&lt;&lt;component&gt;&gt;\nWS /ws/telemetry"]
+        end
+    end
+
+    SPA -- "/api/*  (Bearer JWT)" --> Routes
+    SPA -- "/ws/telemetry?token=…" --> WSR
+
+    Routes --> AuthC
+    Routes --> ARoutes
+    Routes --> RClient
+    Routes -- "Mongoose ODM" --> Mongo
+    ARoutes -- "Mongoose ODM" --> Mongo
+
+    RClient -- "REST (retried)" --> RAPI
+    WSR -- "WS (relayed)" --> RWS

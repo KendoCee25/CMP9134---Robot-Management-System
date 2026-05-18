@@ -1,0 +1,37 @@
+sequenceDiagram
+    actor C as Commander
+    participant UI as React Dashboard
+    participant API as Express Backend
+    participant DB as MongoDB
+    participant Sim as Virtual Robot
+
+    C->>UI: Enter X=5, Y=10 and click 'Move'
+    UI->>UI: Client-side validation (0..20)
+
+    UI->>API: POST /api/move {x:5, y:10} with Bearer JWT
+
+    API->>API: authenticate — verify JWT signature, decode {sub, role}
+    alt invalid token
+        API-->>UI: 401 Unauthorized
+    else valid
+        API->>API: requireOperator — role == operator
+        alt role == viewer
+            API-->>UI: 403 Forbidden
+        else commander
+            API->>API: isValidTarget(5, 10)
+            alt invalid
+                API->>DB: MissionLog.create(outcome=ERROR, detail="Invalid coordinates")
+                API-->>UI: 422 Unprocessable Entity
+            else valid
+                API->>Sim: POST /api/move {x:5,y:10} (retried with backoff)
+                alt robot 200
+                    Sim-->>API: 200 OK
+                    API->>DB: MissionLog.create(outcome=SUCCESS)
+                    API-->>UI: 200 OK
+                else robot 5xx or timeout after retries
+                    API->>DB: MissionLog.create(outcome=ERROR, detail=err.message)
+                    API-->>UI: 503 Service Unavailable
+                end
+            end
+        end
+    end

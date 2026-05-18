@@ -1,42 +1,148 @@
-#root {
-  max-width: 1280px;
-  margin: 0 auto;
+/* Robot GCS — dark theme styles ported from client/public/prototype.html */
+
+.gcs-navbar {
+  background-color: #161b22 !important;
+  border-bottom: 1px solid #30363d;
+}
+.gcs-navbar .navbar-brand { color: #58a6ff !important; font-weight: 700; letter-spacing: 0.05em; }
+.gcs-navbar .nav-link { color: #8b949e !important; }
+.gcs-navbar .nav-link:hover, .gcs-navbar .nav-link.active { color: #c9d1d9 !important; }
+
+.role-badge-commander { background-color: #d29922; color: #000; }
+.role-badge-viewer    { background-color: #30363d; color: #8b949e; }
+
+.status-bar {
+  background-color: #161b22;
+  border-bottom: 1px solid #30363d;
+  font-size: 0.85rem;
+}
+.conn-dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
+.conn-connected    { background-color: #3fb950; }
+.conn-reconnecting { background-color: #d29922; animation: pulse 1s ease-in-out infinite; }
+.conn-lost         { background-color: #f85149; }
+.conn-disconnected { background-color: #6e7681; }
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50%      { opacity: 0.3; }
+}
+
+.gcs-card {
+  background-color: #161b22;
+  border: 1px solid #30363d;
+  border-radius: 8px;
+}
+.gcs-card-header {
+  background-color: #21262d;
+  border-bottom: 1px solid #30363d;
+  font-weight: 600;
+  color: #58a6ff;
+  font-size: 0.85rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+/* 2D grid map — 21×21 */
+.grid-map {
+  display: grid;
+  gap: 2px;
+  width: 100%;
+  aspect-ratio: 1;
+}
+.grid-cell {
+  border-radius: 2px;
+  background-color: #21262d;
+  position: relative;
+}
+.grid-cell::before { content: ""; display: block; padding-top: 100%; }
+.cell-obstacle { background-color: #30363d; }
+.cell-robot    { background-color: #58a6ff; border-radius: 50%; box-shadow: 0 0 8px #58a6ff; }
+.cell-charging { background-color: #3fb950; border-radius: 50%; }
+
+/* Battery progress bar colours */
+.battery-high   { background-color: #3fb950 !important; }
+.battery-medium { background-color: #d29922 !important; }
+.battery-low    { background-color: #f85149 !important; }
+
+/* Status badges */
+.badge-IDLE        { background-color: #3fb950 !important; color: #000; }
+.badge-MOVING      { background-color: #58a6ff !important; color: #000; }
+.badge-LOW_BATTERY { background-color: #d29922 !important; color: #000; }
+.badge-STUCK       { background-color: #f85149 !important; color: #fff; }
+.badge-UNREACHABLE { background-color: #6e7681 !important; color: #fff; }
+
+/* Move button — Fitts's Law: full-width, large */
+.btn-move {
+  width: 100%;
+  padding: 14px;
+  font-size: 1.1rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  background-color: #238636;
+  border-color: #2ea043;
+  color: #fff;
+  transition: background-color 0.15s, opacity 0.15s;
+}
+.btn-move:hover:not(:disabled) { background-color: #2ea043; color: #fff; }
+.btn-move:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  background-color: #30363d;
+  border-color: #30363d;
+}
+
+.btn-stop {
+  width: 100%;
+  padding: 10px;
+  font-weight: 600;
+  background-color: #da3633;
+  border-color: #f85149;
+  color: #fff;
+}
+.btn-stop:hover { background-color: #f85149; color: #fff; }
+
+.btn-reset {
+  background-color: transparent;
+  border-color: #30363d;
+  color: #8b949e;
+  font-size: 0.85rem;
+}
+.btn-reset:hover { border-color: #8b949e; color: #c9d1d9; }
+
+/* Dark form inputs */
+.form-control, .form-select {
+  background-color: #0d1117;
+  border-color: #30363d;
+  color: #c9d1d9;
+}
+.form-control:focus, .form-select:focus {
+  background-color: #0d1117;
+  border-color: #58a6ff;
+  color: #c9d1d9;
+  box-shadow: 0 0 0 3px rgba(88, 166, 255, 0.25);
+}
+.form-control.is-invalid { border-color: #f85149; }
+.form-control.is-valid   { border-color: #3fb950; }
+
+/* Audit table */
+.audit-table { color: #c9d1d9; font-size: 0.85rem; }
+.audit-table thead th { background-color: #21262d; border-color: #30363d; color: #8b949e; }
+.audit-table tbody tr { border-color: #30363d; }
+.audit-table tbody tr:hover { background-color: #21262d; }
+
+/* Toasts */
+.toast-success { background-color: #1a3a2a; border: 1px solid #3fb950; color: #3fb950; }
+.toast-error   { background-color: #3a1a1a; border: 1px solid #f85149; color: #f85149; }
+.toast-warning { background-color: #3a2a0a; border: 1px solid #d29922; color: #d29922; }
+
+/* Auth pages */
+.auth-card {
+  max-width: 420px;
+  margin: 5rem auto;
   padding: 2rem;
-  text-align: center;
 }
-
-.logo {
-  height: 6em;
-  padding: 1.5em;
-  will-change: filter;
-  transition: filter 300ms;
-}
-.logo:hover {
-  filter: drop-shadow(0 0 2em #646cffaa);
-}
-.logo.react:hover {
-  filter: drop-shadow(0 0 2em #61dafbaa);
-}
-
-@keyframes logo-spin {
-  from {
-    transform: rotate(0deg);
-  }
-  to {
-    transform: rotate(360deg);
-  }
-}
-
-@media (prefers-reduced-motion: no-preference) {
-  a:nth-of-type(2) .logo {
-    animation: logo-spin infinite 20s linear;
-  }
-}
-
-.card {
-  padding: 2em;
-}
-
-.read-the-docs {
-  color: #888;
+.auth-card h1 {
+  color: #58a6ff;
+  font-weight: 700;
+  letter-spacing: 0.05em;
 }

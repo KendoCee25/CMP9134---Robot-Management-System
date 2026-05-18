@@ -1,17 +1,20 @@
 /**
  * Task 2 — API integration tests.
  *
- * Uses supertest (Node equivalent of FastAPI's TestClient) to drive the
- * Express app in-process. A fake RobotClient is injected so the tests
- * never touch the real Virtual Robot container.
+ * Uses supertest to drive the Express app in-process. A fake RobotClient is
+ * injected so the tests never touch the real Virtual Robot container. An
+ * in-memory MongoDB (booted via globalSetup) backs the audit log writes that
+ * every command path performs.
  */
 
 const request = require("supertest");
 const { createApp } = require("../app");
+const testEnv = require("./testEnv");
 
 function buildApp() {
   const fakeRobot = {
-    getStatus: async () => ({ position: { x: 0, y: 0 }, status: "IDLE" }),
+    getStatus: async () => ({ id: "XR-900", position: { x: 0, y: 0 }, battery: 100, status: "IDLE" }),
+    getMap: async () => ({ width: 21, height: 21, grid: [] }),
     move: async (x, y) => ({
       success: true,
       message: `Navigating to (${x}, ${y})`,
@@ -21,6 +24,10 @@ function buildApp() {
   };
   return createApp({ robotClient: fakeRobot });
 }
+
+beforeAll(testEnv.connect);
+afterAll(testEnv.disconnect);
+beforeEach(testEnv.clear);
 
 test("POST /api/move without a token returns 401", async () => {
   const app = buildApp();
