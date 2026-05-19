@@ -1,12 +1,8 @@
 # Accessibility Audit — Ground Control Station Prototype
 
-**Project:** CMP9134 Robot Management System
-**Author:** KendoCee25 | University of Lincoln
-**Week:** 6 — HCI & Design Thinking (Lab Sheet 6 — Task 4)
-**File audited:** `client/public/prototype.html`
-**Standard:** WCAG 2.1 Level AA
 
----
+**Week:** 6 — HCI & Design Thinking (Lab Sheet 6 — Task 4)
+
 
 ## Audit Method
 

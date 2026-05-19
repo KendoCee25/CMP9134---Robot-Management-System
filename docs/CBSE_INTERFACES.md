@@ -1,9 +1,7 @@
 # CBSE Interface Specification — Mission Logger
 
-**Project:** CMP9134 Robot Management System
-**Author:** KendoCee25 | University of Lincoln
 **Originated:** Week 5 — Architecture, Patterns & Reuse (Lab Sheet 5 — Task 4)
-**Last revised:** to match the implemented `server/auditLog.js` + `server/models/MissionLog.js`.
+
 
 ---
 

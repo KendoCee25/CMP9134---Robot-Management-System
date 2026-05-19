@@ -1,11 +1,5 @@
 # HCI Heuristic Evaluation — Ground Control Station
-
-**Project:** CMP9134 Robot Management System
-**Author:** KendoCee25 | University of Lincoln
 **Week:** 6 — HCI & Design Thinking (Lab Sheet 6 — Task 2)
-**Method:** Heuristic Evaluation against Norman's 7 Principles & Shneiderman's 8 Golden Rules
-
----
 
 ## Evaluation Process
 

@@ -1,10 +1,7 @@
 # UML Diagrams — Robot Management System
 
-**Project:** CMP9134 Robot Management System
-**Author:** KendoCee25 | University of Lincoln
 **Originated:** Week 4 — Software System Modelling (Lab Sheet 4)
-**Last revised:** to match the implemented code in `server/` and `client/`.
-**Tool:** Mermaid.js (render on GitHub or at https://mermaid.live)
+
 
 All diagrams trace back to the requirements in `USER_STORIES.md` and the live API behaviour in `API_ANALYSIS.md`.
 

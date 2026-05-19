@@ -1,7 +1,5 @@
 # UI Wireframes — Ground Control Station
 
-**Project:** CMP9134 Robot Management System
-**Author:** KendoCee25 | University of Lincoln
 **Week:** 6 — HCI & Design Thinking (Lab Sheet 6 — Task 1)
 
 ---

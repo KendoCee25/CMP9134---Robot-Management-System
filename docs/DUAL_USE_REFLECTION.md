@@ -1,6 +1,5 @@
 # Dual Use Reflection
 **For Report Section 5 — Social, Ethical, Entrepreneurial Implications**
-**Word count:** 178 words
 
 ---
 

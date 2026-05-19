@@ -1,7 +1,5 @@
 # Open-Source License Audit
 
-**Project:** CMP9134 Robot Management System
-**Author:** KendoCee25 | University of Lincoln
 **Week:** 5 — Architecture, Patterns & Reuse (Lab Sheet 5 — Task 3: LEPSI)
 
 ---

@@ -1,11 +1,5 @@
 # Architecture — Robot Management System
 
-**Project:** CMP9134 Robot Management System
-**Author:** KendoCee25 | University of Lincoln
-**Originated:** Week 5 — Architecture, Patterns & Reuse (Lab Sheet 5)
-**Last revised:** to reflect the live code in `server/` and `client/`.
-
----
 
 ## 1. Chosen tech stack
 
